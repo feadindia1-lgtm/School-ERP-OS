@@ -46,6 +46,10 @@ async def get_current_user(request: Request) -> dict:
 
     user["id"] = str(user.pop("_id"))
     user.pop("password_hash", None)
+    # Surface impersonation metadata so audit logs can capture it.
+    if payload.get("impersonated_by"):
+        user["impersonated_by"] = payload["impersonated_by"]
+        user["impersonation_reason"] = payload.get("impersonation_reason")
     return user
 
 

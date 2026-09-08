@@ -72,10 +72,20 @@ def _tenant_to_out(t: dict) -> TenantOut:
         id=str(t["_id"]),
         name=t["name"],
         slug=t["slug"],
+        short_name=t.get("short_name"),
+        school_code=t.get("school_code"),
+        board=t.get("board"),
+        school_type=t.get("school_type"),
         contact_email=t["contact_email"],
         country=t.get("country"),
         plan=t.get("plan", "trial"),
         status=t.get("status", "active"),
+        contact=t.get("contact") or {},
+        academic=t.get("academic") or {},
+        branding=t.get("branding") or {},
+        modules=t.get("modules") or {},
+        trial_ends_at=t.get("trial_ends_at"),
+        subscription_started_at=t.get("subscription_started_at"),
         created_at=(
             datetime.fromisoformat(t["created_at"])
             if isinstance(t.get("created_at"), str)
@@ -270,3 +280,26 @@ async def refresh(request: Request, response: Response):
 @router.get("/me", response_model=UserOut)
 async def me(user: dict = Depends(get_current_user)):
     return _user_to_out(user, user.get("tenant_id"))
+
+
+@router.get("/session", response_model=AuthResponse)
+async def session(user: dict = Depends(get_current_user)):
+    """Full session context: user, tenant (if any), impersonation info (if active)."""
+    tenant_out = None
+    if user.get("tenant_id"):
+        t = await get_db().tenants.find_one({"_id": ObjectId(user["tenant_id"])})
+        if t:
+            tenant_out = _tenant_to_out(t)
+    imp = None
+    if user.get("impersonated_by"):
+        plat = await get_db().users.find_one({"_id": ObjectId(user["impersonated_by"])})
+        imp = {
+            "impersonator_id": user["impersonated_by"],
+            "impersonator_email": (plat or {}).get("email"),
+            "reason": user.get("impersonation_reason"),
+        }
+    return AuthResponse(
+        user=_user_to_out(user, user.get("tenant_id")),
+        tenant=tenant_out,
+        impersonation=imp,
+    )

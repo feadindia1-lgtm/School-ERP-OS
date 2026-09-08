@@ -183,7 +183,7 @@ def test_platform_superadmin_login_and_endpoints():
     r = s.get(f"{API}/platform/stats")
     assert r.status_code == 200
     stats = r.json()
-    assert "tenants" in stats and "users" in stats and "audit_events" in stats
+    assert "total_schools" in stats and "total_users" in stats and "audit_events_30d" in stats
 
 
 def test_platform_patch_tenant_audit():

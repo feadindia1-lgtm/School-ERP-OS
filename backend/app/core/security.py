@@ -23,7 +23,7 @@ def _encode(payload: dict) -> str:
     return jwt.encode(payload, settings.JWT_SECRET, algorithm=settings.JWT_ALGORITHM)
 
 
-def create_access_token(*, user_id: str, tenant_id: str | None, role: str) -> str:
+def create_access_token(*, user_id: str, tenant_id: str | None, role: str, extra: dict | None = None) -> str:
     now = datetime.now(timezone.utc)
     payload = {
         "sub": user_id,
@@ -34,6 +34,8 @@ def create_access_token(*, user_id: str, tenant_id: str | None, role: str) -> st
         "exp": now + timedelta(minutes=settings.ACCESS_TOKEN_MINUTES),
         "jti": str(uuid.uuid4()),
     }
+    if extra:
+        payload.update(extra)
     return _encode(payload)
 
 

@@ -3,8 +3,10 @@ import { motion } from "framer-motion";
 import {
   Users, ShieldCheck, ClockCounterClockwise, Plus, GraduationCap, ChalkboardTeacher,
   CurrencyDollar, ClipboardText, Calendar as CalendarIcon, Books, EnvelopeSimple, ChartLineUp,
+  Sparkle,
 } from "@phosphor-icons/react";
 import AppHeader from "@/components/AppHeader";
+import ImpersonationBanner from "@/components/ImpersonationBanner";
 import { api, formatApiError } from "@/lib/api";
 import { toast } from "sonner";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -16,15 +18,15 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAuth } from "@/context/AuthContext";
 
-const COMING_SOON = [
-  { i: GraduationCap, t: "Students", d: "Registry, transfer, certificates" },
-  { i: ChalkboardTeacher, t: "Attendance", d: "Class-teacher, biometric, overrides" },
-  { i: CalendarIcon, t: "Timetable", d: "Auto-generation, proxy scheduling" },
-  { i: CurrencyDollar, t: "Fees", d: "Structures, collect, refund, receipts" },
-  { i: ClipboardText, t: "Payroll", d: "Salary components, statutory, payslips" },
-  { i: Books, t: "Curriculum", d: "Syllabus, lesson plans, execution" },
-  { i: EnvelopeSimple, t: "Communication", d: "Announcements, SMS, notifications" },
-  { i: ChartLineUp, t: "Analytics", d: "Cohort, revenue, retention" },
+const MODULE_CARDS = [
+  { key: "crm", i: EnvelopeSimple, t: "CRM (Front Porch)", d: "Inquiry → Application → Conversion" },
+  { key: "attendance", i: ChalkboardTeacher, t: "Attendance", d: "Class-teacher & biometric" },
+  { key: "fees", i: CurrencyDollar, t: "Fees", d: "Structures, collect, refunds" },
+  { key: "payroll", i: ClipboardText, t: "Payroll", d: "Salary + statutory" },
+  { key: "examinations", i: GraduationCap, t: "Examinations", d: "Marks & report cards" },
+  { key: "curriculum", i: Books, t: "Curriculum", d: "Syllabus & lesson plans" },
+  { key: "communication", i: EnvelopeSimple, t: "Communication", d: "Announcements & SMS" },
+  { key: "ai_assistance", i: Sparkle, t: "AI Assistance", d: "Copilots across modules" },
 ];
 
 const tabTrig = "rounded-none border-b-2 border-transparent data-[state=active]:border-[var(--klein)] data-[state=active]:bg-transparent data-[state=active]:shadow-none px-6 py-3 font-heading font-semibold";
@@ -81,6 +83,7 @@ export default function SchoolConsolePage() {
 
   return (
     <div className="min-h-screen bg-[var(--paper)]" data-testid="school-console">
+      <ImpersonationBanner />
       <AppHeader variant="console" />
       <div className="max-w-[1400px] mx-auto px-6 lg:px-10 py-10">
         <div className="overline mb-3">School Console</div>
@@ -113,15 +116,20 @@ export default function SchoolConsolePage() {
 
             <TabsContent value="modules" className="mt-6">
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-px bg-[var(--tinted-grey-200)] border border-[var(--tinted-grey-200)]">
-                {COMING_SOON.map(({ i: Icon, t, d }) => (
-                  <div key={t} className="bg-white p-6 relative overflow-hidden group" data-testid={`module-${t.toLowerCase()}`}>
-                    <Icon size={22} weight="duotone" className="text-[var(--klein)]" />
-                    <div className="mt-4 font-heading font-bold text-lg">{t}</div>
-                    <div className="text-sm text-[var(--tinted-grey-500)] mt-1">{d}</div>
-                    <div className="mt-6 overline text-[var(--tinted-grey-400)]">Coming soon</div>
-                    <div className="absolute -right-6 -top-6 h-24 w-24 border border-[var(--tinted-grey-200)] rotate-45 group-hover:border-[var(--klein)] transition-colors" />
-                  </div>
-                ))}
+                {MODULE_CARDS.map(({ key, i: Icon, t, d }) => {
+                  const enabled = !!school?.modules?.[key];
+                  return (
+                    <div key={t} className={`bg-white p-6 relative overflow-hidden group ${enabled ? "" : "opacity-60"}`} data-testid={`module-${key}`}>
+                      <Icon size={22} weight="duotone" className="text-[var(--klein)]" />
+                      <div className="mt-4 font-heading font-bold text-lg">{t}</div>
+                      <div className="text-sm text-[var(--tinted-grey-500)] mt-1">{d}</div>
+                      <div className={`mt-6 overline ${enabled ? "text-[var(--klein)]" : "text-[var(--tinted-grey-400)]"}`}>
+                        {enabled ? "Enabled · Coming soon" : "Disabled"}
+                      </div>
+                      <div className="absolute -right-6 -top-6 h-24 w-24 border border-[var(--tinted-grey-200)] rotate-45 group-hover:border-[var(--klein)] transition-colors" />
+                    </div>
+                  );
+                })}
               </div>
             </TabsContent>
 

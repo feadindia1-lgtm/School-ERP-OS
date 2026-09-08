@@ -41,6 +41,40 @@ Build the foundation of a production-ready multi-tenant SaaS platform called **S
 - Docs: `/app/docs/ARCHITECTURE.md`, `/app/auth_testing.md`, `/app/memory/test_credentials.md`.
 - Verified: 24/24 backend tests pass — tenant isolation, RBAC, audit, error envelope, brute-force lockout. Frontend flows 100%.
 
+## Implemented (2026-02-09) — Prompt 1: SaaS onboarding
+### Backend
+- Extended `Tenant` model with `short_name, school_code, board, school_type, contact, academic, branding, modules, trial_ends_at, subscription_started_at`. Enum sets exposed (`BOARDS`, `SCHOOL_TYPES`, `SCHOOL_STATUSES`, `PLANS`) and `DEFAULT_MODULES / DEFAULT_BRANDING / DEFAULT_CONTACT / DEFAULT_ACADEMIC`.
+- New `Alert` model + `alert_service.create_alert()`; pricing map in `services/pricing.py` (trial/starter/standard/premium/enterprise).
+- Expanded `TenantOut` and `AuthResponse` (with `impersonation` block); added wizard DTOs (`WizardInstitution/Contact/Academic/Administrator/Branding/Modules`, `CreateSchoolRequest`, `CreateSchoolResponse`), `TenantStatusChange`, `TenantPlanChange`, `TenantEntitlementsUpdate`, `ImpersonateRequest`, `AlertOut`, `PlatformStats`.
+- New / updated platform endpoints under `/api/v1/platform`:
+  - `POST /schools` — wizard onboarding (creates tenant + `school_admin`, generates temp password if omitted, alerts + audits).
+  - `GET  /tenants` — filtered by status/query.
+  - `GET  /tenants/{id}` · `PATCH /tenants/{id}` — extended fields.
+  - `POST /tenants/{id}/status` — activate / suspend / archive (audits, raises alert on suspend/archive).
+  - `POST /tenants/{id}/plan` — change plan, records MRR delta and sets `subscription_started_at`.
+  - `POST /tenants/{id}/entitlements` — merge module toggles (unknown keys ignored).
+  - `GET  /tenants/{id}/usage` — users total + by-role, audit_events_30d, logins_30d.
+  - `GET  /stats` — dashboard KPIs (`total/active/trial/suspended/archived`, students, teachers, users, MRR, audit_events_30d, subscription_status mix, recently_onboarded, open_alerts).
+  - `GET  /alerts` · `POST /alerts/{id}/acknowledge`.
+  - `POST /tenants/{id}/impersonate` · `POST /impersonate/exit` — full support mode with reason (>=4 chars), separate `impersonator_id` cookie, and `impersonation.start` / `impersonation.end` audit events.
+- New `GET /api/v1/auth/session` — returns full session `{user, tenant, impersonation}`.
+- Security: `create_access_token` accepts arbitrary claims; `get_current_user` surfaces `impersonated_by` + `impersonation_reason` on the user dict for downstream audit.
+- New indexes: `tenants.school_code` (sparse), `tenants.status`, `alerts (tenant_id, acknowledged, created_at desc)`, TTL 24 h on `login_attempts.last_attempt`.
+
+### Frontend
+- Introduced sidebar shell `PlatformShell` (Dashboard / Schools / Alerts / Audit log) — foundation for future ERP module navigation.
+- `PlatformDashboardPage` — 8 KPI tiles, recently-onboarded list, subscription-mix panel, open-alerts CTA.
+- `PlatformSchoolsPage` — searchable + status-filtered tenants table.
+- `PlatformSchoolNewPage` — 6-step wizard (Institution → Contact → Academic → Administrator → Branding → Modules); success screen displays generated temp password.
+- `PlatformSchoolDetailPage` — Overview edit, plan change, entitlement toggles, usage KPIs, and support-mode dialog with mandatory reason.
+- `PlatformAlertsPage` — open/all tabs, per-row acknowledge.
+- `PlatformAuditPage` — action-prefix filter, dense table.
+- `ImpersonationBanner` — global yellow support-mode banner with one-click exit.
+- `AuthContext` upgraded to hydrate from `/auth/session` and expose `impersonation` + `exitImpersonation()`.
+- `SchoolConsolePage` — module cards now reflect the tenant's `modules` toggles (enabled/disabled); impersonation banner rendered when applicable.
+- `App.js` — nested routes under `/platform` via `PlatformShell`; catch-all `*` route.
+- Verified: **41/41 backend tests pass** (24 foundation + 17 Prompt 1). Frontend flows 100% including wizard end-to-end, impersonation round-trip, alert acknowledgment.
+
 ## Prioritized backlog
 
 ### P0 (next prompts)

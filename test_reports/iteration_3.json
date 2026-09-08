@@ -1,0 +1,42 @@
+{
+  "summary": "Iteration 3 — regression + Prompt 1 (multi-tenant SaaS + platform console + wizard + impersonation). Backend: 23/24 foundation tests still pass and 17/17 new Prompt 1 backend tests pass (total 40/41 = 97.5%). The lone foundation failure is a stale assertion in test_platform_superadmin_login_and_endpoints against the /platform/stats old shape (`tenants`/`users`/`audit_events` keys) which was intentionally redesigned in Prompt 1 to expose richer fields (`total_schools`, `total_users`, `audit_events_30d`, …). Frontend: full platform console works — login, KPI dashboard, sidebar (dashboard/schools/alerts/audit), 6-step wizard end-to-end onboarding a real tenant with temp password display, school detail with mini KPIs and action buttons, support-mode impersonation with banner + exit round-trip, alert acknowledgment, audit filter by action prefix, landing page + logged-out /platform redirect to /login. All /api/v1/platform/* calls return 200/201 as expected.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "/api/v1/platform/stats", "issue": "Legacy foundation test `test_platform_superadmin_login_and_endpoints` asserts old keys (`tenants`,`users`,`audit_events`) that were renamed in Prompt 1. Update the foundation test to the new PlatformStats schema so regression is clean."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Platform dashboard on first load", "issues": ["When session cookie hasn't yet materialised the KPIs briefly render as em-dashes; a 401 flashes in DevTools before /platform/stats succeeds. Cosmetic — resolves within ~1s."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_foundation.py",
+    "/app/backend/tests/test_platform_prompt1.py",
+    "/app/test_reports/pytest/iter3.xml"
+  ],
+  "action_items": [
+    "Update /app/backend/tests/test_foundation.py::test_platform_superadmin_login_and_endpoints to assert the new PlatformStats keys (total_schools/total_users/audit_events_30d) instead of tenants/users/audit_events."
+  ],
+  "critical_code_review_comments": [
+    "platform_routes.py:502 — the 'target must not be platform_superadmin' guard runs AFTER the DB lookup that scopes by tenant_id, so a platform superadmin id is filtered by `tenant_id == <school>` and returns 404 rather than the intended 400. Functionally still blocked, but the response code contract in the review request ('must return 400') is only satisfied if a platform_superadmin somehow lives inside a tenant. Consider looking up target without tenant scope first, then rejecting with 400 if role == platform_superadmin.",
+    "platform_routes.py:132-134 — the 'Administrator email conflict' branch scopes by tenant_id so a global-unique email check is missed. Not blocking (users.email is only unique per-tenant), but worth documenting.",
+    "auth_routes.py:290 — GET /auth/session uses ObjectId(user['tenant_id']) without try/except; a malformed token would produce a 500 instead of 401. Low priority.",
+    "PlatformDashboardPage briefly logs a 401 when opened directly after login (before AuthContext hydrates cookies). Consider gating the stats fetch on `auth.ready`.",
+    "test_foundation.py::test_platform_superadmin_login_and_endpoints uses the pre-Prompt-1 stats shape and now fails (contract change).",
+    "Both wizard board and school_type inputs are shadcn Select components (not native <select>); already good UX but note for future SDET scripts — use force-click on radix items, not select_option."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_platform_prompt1.py (new — 17 Prompt 1 backend tests)"
+  ],
+  "success_rate": {"backend": "97.5% (40/41 — 23/24 foundation + 17/17 Prompt 1)", "frontend": "100% of Prompt 1 flows exercised"},
+  "test_credentials": "Platform: superadmin@schoolos.dev / SuperAdmin@123. Wizard-created school admin temp password is displayed once in wizard-success screen.",
+  "seed_data_creation": "Each run creates 3 wizard tenants: `wiz-{run6}`, `iso-a-{run6}`, `iso-b-{run6}` plus foundation `riverside-{run6}`, `hilltop-{run6}` and a UI-only tenant `ui{6}`. No cleanup endpoint — accumulates in db.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Run `pytest backend/tests/ -v -o addopts=''` from /app to execute both foundation and Prompt 1 backend suites serially. Foundation test_platform_superadmin_login_and_endpoints will fail against the new stats schema until the assertion is updated. Frontend selectors verified: nav-{dashboard,schools,alerts,audit}, kpi-*, w-* (wizard fields), wizard-{next,submit,success,temp-password}, detail-{name,status,kpi-*}, action-{activate,suspend,archive,impersonate}, impersonate-{reason,confirm}, impersonation-{banner,exit}, alerts-tab-{open,all}, alert-ack-{id}, audit-table, audit-filter.",
+  "rca of the issue": "Foundation test failure is not a product regression — the /platform/stats schema was intentionally expanded for Prompt 1 (renamed dict keys). Fix is to update the assertion to match PlatformStats (total_schools, total_users, audit_events_30d)."
+}

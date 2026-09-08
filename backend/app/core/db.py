@@ -32,9 +32,13 @@ async def ensure_indexes() -> None:
     )
     await db.users.create_index("tenant_id")
     await db.tenants.create_index("slug", unique=True)
+    await db.tenants.create_index("school_code", sparse=True)
+    await db.tenants.create_index("status")
     await db.audit_logs.create_index([("tenant_id", 1), ("created_at", -1)])
     await db.audit_logs.create_index("actor_id")
+    await db.alerts.create_index([("tenant_id", 1), ("acknowledged", 1), ("created_at", -1)])
     await db.login_attempts.create_index("identifier")
+    await db.login_attempts.create_index("last_attempt", expireAfterSeconds=86400)
     await db.password_reset_tokens.create_index(
         "expires_at", expireAfterSeconds=0
     )
