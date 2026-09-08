@@ -1,0 +1,41 @@
+{
+  "summary": "First test run of School OS foundation. Backend pytest suite: 23/24 passed (95.8%). All auth, tenant isolation, RBAC, audit, platform admin, and error envelope tests pass. One CRITICAL security bug found: brute-force lockout is bypassable through the public ingress because the lockout identifier is built from the entire X-Forwarded-For header string (which includes rotating intermediate proxy IPs from Cloudflare/GCP), so each attempt is counted under a different key. Verified: locally on 127.0.0.1 lockout works (429 on 6th), but through the ingress 20+ consecutive failed logins never trigger 429. Frontend: 100% of flows pass (landing, register-school, /school console with 8 module cards, Users tab create-teacher via UI, superadmin login to /platform with tenants-table, cross-role redirect from /school to /platform, logged-out /platform redirects to /login).",
+  "backend_issues": {
+    "critical": [
+      {
+        "endpoint": "POST /api/v1/auth/login",
+        "issue": "Brute-force lockout is bypassable via the public ingress. auth_routes.py:147 uses `request.headers.get('x-forwarded-for')` as the raw string; ingress adds rotating intermediate proxy IPs (e.g. '34.16.56.64,172.70.126.86,34.36.184.211'), so every attempt gets a different identifier and MAX_ATTEMPTS is never reached. Fix: take only the first (leftmost, client) IP via `xff.split(',')[0].strip()` before building `identifier`. Same issue exists in services/audit_service.py:24 (audit IP field will also record noisy chains).",
+        "priority": "CRITICAL"
+      }
+    ],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_foundation.py",
+    "/app/test_reports/pytest/foundation.xml"
+  ],
+  "action_items": [
+    "Fix brute-force IP parsing in /app/backend/app/api/v1/auth_routes.py (login) and /app/backend/app/services/audit_service.py: parse X-Forwarded-For as `xff.split(',')[0].strip()` so lockout counter and audit IP field use the true client IP."
+  ],
+  "critical_code_review_comments": [
+    "X-Forwarded-For handling is naive in both auth_routes.py and audit_service.py — always take leftmost IP, not the raw header string.",
+    "auth_routes.py:104 duplicate-owner-email check is unreachable (tenant just created is empty); harmless but dead code.",
+    "school_routes.py cross-tenant GET returns 404 which is correct (does not leak existence). Good.",
+    "Error envelope, cookie flags (httpOnly+Secure+SameSite=None), bcrypt hashes (verified via API round-trip), and refresh-token revocation on logout all behave correctly."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_foundation.py (created)"
+  ],
+  "success_rate": {"backend": "95.8% (23/24)", "frontend": "100%"},
+  "test_credentials": "Platform: superadmin@schoolos.dev / SuperAdmin@123. Test-run tenants use random suffix to avoid slug conflicts.",
+  "seed_data_creation": "Each pytest run creates fresh tenants riverside-{run6} and hilltop-{run6} plus a teacher user; UI test creates ui{run6} tenant. None cleaned up (foundation has no delete-tenant endpoint).",
+  "retest_needed": true,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Backend test file: /app/backend/tests/test_foundation.py (pytest, uses REACT_APP_BACKEND_URL). Only the brute-force lockout test is expected to fail until the X-Forwarded-For parsing is fixed. After fix, rerun `pytest backend/tests/test_foundation.py -v`. Frontend flows all pass; use data-testids listed in the request. Note: MongoDB accumulates test tenants across runs — that is fine because tests always use unique random slug suffixes.",
+  "rca of the issue": "Root cause: request.headers.get('x-forwarded-for') returns the entire XFF chain string. On the public ingress the middle hop (Cloudflare edge PoP or GCP load balancer) is not stable — each request may traverse a different edge IP — so the string 'clientIP, edgeIP, lbIP' varies. The lockout key `f'{xff}:{email}'` therefore mutates every request, spreading attempts across many DB rows and never reaching MAX_ATTEMPTS=5. Reproduction: curl the login endpoint 6+ times through the preview URL with wrong password — all return 401, never 429; then query `db.login_attempts` and observe multiple rows for the same email with attempts<5. Mitigation: normalize IP to the leftmost token of XFF (`ip = (xff.split(',')[0].strip() if xff else (client.host or '0.0.0.0'))`) in both auth_routes.py and audit_service.py."
+}

@@ -1,0 +1,127 @@
+{
+  "theme": "System with toggle. Light Theme for ERP Dashboard (maximize data readability). Dark Theme available, especially for Marketing pages to convey premium positioning.",
+  "typography": {
+    "headings_font": "Cabinet Grotesk",
+    "body_font": "IBM Plex Sans",
+    "rules": [
+      "No Inter, Roboto, or Open Sans for headings.",
+      "Headlines > 32px MUST use tracking-tight or tracking-tighter.",
+      "Overlines/Labels MUST be Uppercase, text-xs, tracking-[0.2em].",
+      "Use tabular-nums class for all data grids, tables, and KPIs."
+    ],
+    "scale": {
+      "H1": "text-4xl sm:text-5xl lg:text-6xl tracking-tight font-black",
+      "H2": "text-2xl sm:text-3xl lg:text-4xl tracking-tight font-bold",
+      "H3": "text-xl sm:text-2xl font-semibold",
+      "H4": "text-lg sm:text-xl font-medium",
+      "Body": "text-base leading-relaxed",
+      "Small": "text-sm",
+      "Caption": "text-xs text-muted-foreground"
+    }
+  },
+  "colors": {
+    "archetype": "ARCHETYPE 4: SWISS & HIGH-CONTRAST (Authority, Clarity, Truth)",
+    "palette": {
+      "primary": "#002FA7",
+      "primary_hover": "#001f70",
+      "background_light": "#F9F9FB",
+      "background_dark": "#0A0A0C",
+      "surface_light": "#FFFFFF",
+      "surface_dark": "#121214",
+      "accent_red": "#FF3B30",
+      "accent_yellow": "#FFCC00"
+    },
+    "rules": [
+      "Tinted Grey Rule: Neutral greys must have a tiny blue/orange tint.",
+      "Color is Function Only: 95% of dashboard UI monochrome.",
+      "Forbidden Dashboard Color: Teal green/blue (#1B93A4).",
+      "Never use full-screen gradients. Texture over Gloss."
+    ]
+  },
+  "visual_enhancers": {
+    "surfaces": [
+      "Crystal Glass (Marketing Sticky Headers): bg-white/70 (Light) / bg-black/60 (Dark) + backdrop-blur-xl + backdrop-saturate-150 + 1px delicate inner stroke.",
+      "Dashboard Cards: Flat solid background, 1px subtle border (border-border), no shadow. Hover: -translate-y-1, shadow-sm.",
+      "Grid Borders: Expose the skeleton for feature grids using border-collapse layouts."
+    ]
+  },
+  "grids": {
+    "marketing": {
+      "type": "Bento 'Tetris' Grid",
+      "classes": "grid grid-cols-1 md:grid-cols-8 lg:grid-cols-12 gap-8 lg:gap-12",
+      "rules": "Asymmetry. Never fill 100% perfectly. Leave breathing room."
+    },
+    "dashboard": {
+      "type": "High Density Grid",
+      "classes": "grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-6",
+      "rules": "Every pixel utilized. Use h-full on children. Top-left priority for KPIs."
+    }
+  },
+  "layouts": {
+    "marketing_page": "High visual impact. Overlapping elements, bento grids, aggressive asymmetry. Heavy negative space.",
+    "dashboard_platform_admin": "Collapsible left sidebar navigation. Modular cards/widgets. Progressive disclosure. Dense tables.",
+    "dashboard_school_admin": "Same as platform admin. Use visually distinct 'Coming Soon' cards for future ERP modules (Students, Attendance, etc.).",
+    "spacing": "Generous Spacing Philosophy. Use 2-3x more spacing (p-8, p-12). Containers with border MUST have padding (p-6/p-8) to avoid collision."
+  },
+  "motion": {
+    "marketing": "High. Parallax, scroll-triggered effects, micro-interactions using Framer Motion.",
+    "dashboard": "Minimalist. Micro-interactions for feedback.",
+    "rules": [
+      "Respect prefers-reduced-motion.",
+      "Use specific transitions, NEVER transition: all."
+    ]
+  },
+  "accessibility": {
+    "contrast": "Minimum 4.5:1 for text below 18px. Use APCA.",
+    "focus": "Focus states must have HIGHER contrast.",
+    "testing": "All interactive elements MUST include data-testid attribute (kebab-case, role-based)."
+  },
+  "media": {
+    "image_urls": {
+      "marketing_hero": {
+        "url": "https://images.unsplash.com/photo-1777378543333-b4fb4f96fdd3?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAzMzN8MHwxfHNlYXJjaHw0fHxtb2Rlcm4lMjBzY2hvb2wlMjBidWlsZGluZyUyMGV4dGVyaW9yfGVufDB8fHx8MTc4ODg2NjcxM3ww&ixlib=rb-4.1.0&q=85",
+        "description": "Modern glass school building exterior",
+        "category": "Hero Background"
+      },
+      "students_learning": {
+        "url": "https://images.unsplash.com/photo-1524178232363-1fb2b075b655?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2NjZ8MHwxfHNlYXJjaHwzfHxzdHVkZW50cyUyMGxlYXJuaW5nJTIwY2xhc3Nyb29tfGVufDB8fHx8MTc4ODg2NjcxM3ww&ixlib=rb-4.1.0&q=85",
+        "description": "Students in modern classroom",
+        "category": "Front Porch/CRM Section"
+      },
+      "admin_working": {
+        "url": "https://images.unsplash.com/photo-1486312338219-ce68d2c6f44d?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2NzZ8MHwxfHNlYXJjaHwxfHxhZG1pbmlzdHJhdG9yJTIwd29ya2luZyUyMGxhcHRvcHxlbnwwfHx8fDE3ODg4NjY3MTN8MA&ixlib=rb-4.1.0&q=85",
+        "description": "Administrator working on a laptop",
+        "category": "Main House/ERP Section"
+      }
+    }
+  },
+  "3d_libraries": {
+    "recommendation": "Use framer-motion for UI transitions. No 3D libraries needed for this phase."
+  },
+  "component_path": {
+    "ui": "/app/frontend/src/components/ui"
+  },
+  "instructions_to_main_agent": {
+    "tech_stack": "JavaScript/JSX (.js or .jsx). DO NOT use TypeScript (.tsx).",
+    "dependencies_to_install": "yarn add framer-motion @phosphor-icons/react sonner",
+    "icons": "Use @phosphor-icons/react for both dense dashboards and marketing.",
+    "shadcn_overrides": "Override Shadcn tablist h-9 with h-auto to prevent content cutoff. Never use native inputs/selects; always use Shadcn Form, Input, Select."
+  },
+  "UNIVERSAL GUIDELINES FOR MAIN AGENT": [
+    "You tend to converge toward generic outputs. Avoid 'AI slop'. Make creative, distinctive frontends.",
+    "Dark colors look good when used independently. DO NOT use dark colors as gradients.",
+    "Don't make generic centered layouts. Use grid/bento layouts as defined.",
+    "Create depth through layered design elements with z-index hierarchy.",
+    "Use glass-morphism effects with backdrop filters (12-24px blur) where instructed.",
+    "You MUST NOT apply universal transition (transition: all).",
+    "You MUST NOT center align the app container (.App { text-align: center; } is FORBIDDEN).",
+    "Always use modern button styles (pill-shaped or sharp) with interaction animations.",
+    "NEVER use AI assistant Emoji characters (🤖🧠💭💡🔮🎯).",
+    "Every interaction needs micro-animations.",
+    "Use 2-3x more spacing than feels comfortable.",
+    "Use 'sonner' for toasts in /app/frontend/src/components/ui/sonner.js.",
+    "Prioritize using pre-existing Shadcn components. Do not build complex interactive components from scratch.",
+    "DO NOT use complete transparent background in header, overlays, or surfaces that have content under them.",
+    "All interactive and key informational elements MUST include a data-testid attribute to facilitate robust automated testing."
+  ]
+}

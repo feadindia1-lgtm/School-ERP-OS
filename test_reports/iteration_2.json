@@ -1,0 +1,24 @@
+{
+  "summary": "Retest of brute-force lockout fix. All 24/24 pytest tests in backend/tests/test_foundation.py PASS (100%). The critical XFF parsing bug reported in iteration_1 is fixed in both auth_routes.py (login lockout identifier) and audit_service.py (audit ip field). Verified via test_brute_force_lockout (6th attempt returns 429 through the public ingress) and by querying /platform/audit-logs — every entry now stores a single leftmost client IP (e.g. '34.16.56.64') instead of the full comma-separated XFF chain.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_foundation.py",
+    "/app/test_reports/pytest/foundation_iter2.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Minor: when login is called with a non-existent tenant_slug the endpoint raises 401 before the lockout counter is incremented (auth_routes.py:161-164). This means an attacker who does not know the tenant slug is not rate-limited on that path. Not exploitable for a specific account (requires a valid slug), so low priority — but consider incrementing the identifier counter even on the invalid-slug branch for completeness."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "100% (24/24)", "frontend": "not tested this iteration"},
+  "test_credentials": "Platform: superadmin@schoolos.dev / SuperAdmin@123. Test tenants use random slug suffix per run.",
+  "seed_data_creation": "Each run creates riverside-{run6} + hilltop-{run6} tenants and a teacher user; no cleanup endpoint exists.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Foundation backend is green. Run whole file with `pytest backend/tests/test_foundation.py -v -n 0` (serial required because the brute-force test uses a shared victim identifier and state dict). Running the lockout test in isolation will fail because the RIVERSIDE_SLUG tenant is only created by test_register_riverside — that is a test ordering constraint, not a product bug.",
+  "rca of the issue": "Original bug: request.headers.get('x-forwarded-for') returned the entire XFF chain 'client, edge, lb'. Because the intermediate hops rotate on the preview ingress, every request produced a different lockout identifier so MAX_ATTEMPTS was never reached. Fix (applied by main agent): `ip = xff.split(',')[0].strip() if xff else client.host` in both auth_routes.py:148 and audit_service.py:25. Verified: (1) pytest test_brute_force_lockout now returns 429 on the 6th attempt through the external URL, (2) audit_logs.ip is a single dotted-quad."
+}

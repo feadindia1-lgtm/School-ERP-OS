@@ -1,0 +1,144 @@
+@import url("https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap");
+@import url("https://api.fontshare.com/v2/css?f[]=cabinet-grotesk@300,400,500,700,800,900&display=swap");
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+    --font-heading: "Cabinet Grotesk", "IBM Plex Sans", ui-sans-serif, sans-serif;
+    --font-body: "IBM Plex Sans", ui-sans-serif, sans-serif;
+    --font-mono: "IBM Plex Mono", ui-monospace, monospace;
+
+    /* Swiss & High-Contrast archetype */
+    --klein: #002fa7;
+    --klein-hover: #001f70;
+    --ink: #0a0a0c;
+    --paper: #f9f9fb;
+    --surface: #ffffff;
+    --tinted-grey-50: #f5f5f7;
+    --tinted-grey-100: #ebebef;
+    --tinted-grey-200: #d9d9df;
+    --tinted-grey-300: #b8b8c2;
+    --tinted-grey-400: #8a8a94;
+    --tinted-grey-500: #5a5a64;
+    --tinted-grey-700: #2c2c33;
+    --accent-red: #ff3b30;
+    --accent-yellow: #ffcc00;
+}
+
+body {
+    margin: 0;
+    font-family: var(--font-body);
+    background: var(--paper);
+    color: var(--ink);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    font-feature-settings:
+        "ss01" on,
+        "cv11" on;
+}
+
+.font-heading {
+    font-family: var(--font-heading);
+}
+.font-body {
+    font-family: var(--font-body);
+}
+.font-mono {
+    font-family: var(--font-mono);
+}
+
+.overline {
+    font-family: var(--font-body);
+    text-transform: uppercase;
+    font-size: 0.7rem;
+    letter-spacing: 0.2em;
+    font-weight: 600;
+    color: var(--tinted-grey-500);
+}
+
+.klein-underline {
+    background-image: linear-gradient(var(--klein), var(--klein));
+    background-size: 0% 2px;
+    background-position: 0 100%;
+    background-repeat: no-repeat;
+    transition:
+        background-size 0.35s ease,
+        color 0.2s ease;
+}
+.klein-underline:hover {
+    background-size: 100% 2px;
+}
+
+.dot-grid {
+    background-image: radial-gradient(
+        circle,
+        rgba(10, 10, 12, 0.08) 1px,
+        transparent 1px
+    );
+    background-size: 22px 22px;
+}
+
+.grain::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.06 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+    mix-blend-mode: multiply;
+    opacity: 0.5;
+}
+
+@layer base {
+    :root {
+        --background: 220 20% 98%;
+        --foreground: 240 6% 6%;
+        --card: 0 0% 100%;
+        --card-foreground: 240 6% 6%;
+        --popover: 0 0% 100%;
+        --popover-foreground: 240 6% 6%;
+        --primary: 222 100% 33%;
+        --primary-foreground: 0 0% 100%;
+        --secondary: 240 6% 92%;
+        --secondary-foreground: 240 6% 12%;
+        --muted: 240 6% 94%;
+        --muted-foreground: 240 4% 40%;
+        --accent: 240 6% 94%;
+        --accent-foreground: 240 6% 12%;
+        --destructive: 4 100% 59%;
+        --destructive-foreground: 0 0% 100%;
+        --border: 240 6% 88%;
+        --input: 240 6% 88%;
+        --ring: 222 100% 33%;
+        --radius: 0.375rem;
+    }
+    * {
+        @apply border-border;
+    }
+    body {
+        @apply bg-background text-foreground;
+    }
+    h1,
+    h2,
+    h3,
+    h4,
+    h5 {
+        font-family: var(--font-heading);
+    }
+}
+
+/* Focus ring — higher contrast per design guidelines */
+*:focus-visible {
+    outline: 2px solid var(--klein);
+    outline-offset: 2px;
+}
+
+::selection {
+    background: var(--klein);
+    color: white;
+}
+
+.tabular {
+    font-variant-numeric: tabular-nums;
+}

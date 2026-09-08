@@ -1,0 +1,4 @@
+/* App-level styles — intentionally minimal.  Do NOT center the App container. */
+.App {
+    min-height: 100vh;
+}
