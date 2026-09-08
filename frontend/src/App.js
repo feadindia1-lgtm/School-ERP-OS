@@ -7,6 +7,14 @@ import LandingPage from "@/pages/LandingPage";
 import LoginPage from "@/pages/LoginPage";
 import RegisterSchoolPage from "@/pages/RegisterSchoolPage";
 import SchoolConsolePage from "@/pages/SchoolConsolePage";
+import SchoolShell from "@/components/SchoolShell";
+import AdmissionsDashboardPage from "@/pages/school/AdmissionsDashboardPage";
+import InquiriesPage from "@/pages/school/InquiriesPage";
+import InquiryDetailPage from "@/pages/school/InquiryDetailPage";
+import ApplicationsPage from "@/pages/school/ApplicationsPage";
+import ApplicationDetailPage from "@/pages/school/ApplicationDetailPage";
+import CampusVisitsPage from "@/pages/school/CampusVisitsPage";
+import CrmConfigPage from "@/pages/school/CrmConfigPage";
 import PlatformShell from "@/components/PlatformShell";
 import PlatformDashboardPage from "@/pages/platform/PlatformDashboardPage";
 import PlatformSchoolsPage from "@/pages/platform/PlatformSchoolsPage";
@@ -26,14 +34,9 @@ export default function App() {
             <Route path="/login" element={<LoginPage />} />
             <Route path="/register" element={<RegisterSchoolPage />} />
 
-            {/* Platform Console — sidebar shell with nested pages */}
             <Route
               path="/platform"
-              element={
-                <ProtectedRoute requirePlatform>
-                  <PlatformShell />
-                </ProtectedRoute>
-              }
+              element={<ProtectedRoute requirePlatform><PlatformShell /></ProtectedRoute>}
             >
               <Route index element={<PlatformDashboardPage />} />
               <Route path="schools" element={<PlatformSchoolsPage />} />
@@ -43,15 +46,22 @@ export default function App() {
               <Route path="audit" element={<PlatformAuditPage />} />
             </Route>
 
-            {/* School Console — impersonated platform admins land here too */}
             <Route
               path="/school"
-              element={
-                <ProtectedRoute requireSchool>
-                  <SchoolConsolePage />
-                </ProtectedRoute>
-              }
-            />
+              element={<ProtectedRoute requireSchool><SchoolShell /></ProtectedRoute>}
+            >
+              <Route index element={<SchoolConsolePage />} />
+              <Route path="users" element={<SchoolConsolePage />} />
+              <Route path="rbac" element={<SchoolConsolePage />} />
+              <Route path="audit" element={<SchoolConsolePage />} />
+              <Route path="admissions" element={<AdmissionsDashboardPage />} />
+              <Route path="admissions/inquiries" element={<InquiriesPage />} />
+              <Route path="admissions/inquiries/:id" element={<InquiryDetailPage />} />
+              <Route path="admissions/applications" element={<ApplicationsPage />} />
+              <Route path="admissions/applications/:id" element={<ApplicationDetailPage />} />
+              <Route path="admissions/visits" element={<CampusVisitsPage />} />
+              <Route path="admissions/config" element={<CrmConfigPage />} />
+            </Route>
 
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>

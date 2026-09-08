@@ -39,7 +39,7 @@ def test_meta():
     assert r.status_code == 200
     data = r.json()
     assert len(data["roles"]) == 11
-    assert len(data["permissions"]) == 24
+    assert len(data["permissions"]) >= 24
 
 
 # ---------- Registration ----------

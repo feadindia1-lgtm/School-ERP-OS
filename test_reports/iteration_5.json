@@ -1,0 +1,39 @@
+{
+  "summary": "Comprehensive backend testing of Prompt 2 (CRM + Admissions) plus regression on Prompt 0/1. Wrote /app/backend/tests/test_crm_admissions.py (31 tests) covering leads/dup-detect/force, check-duplicate, list/patch, stage moves + invalid stage 400, assign cross-tenant guard 400, activity+auto-followup, followup buckets & complete, campus-visit double-booking 409, settings defaults + patch, dashboard shape, application create (INQ+ADM numbering, doc-seed, lead-link, FORM_FILLED), duplicate-application 409, state-machine DRAFT->SUBMITTED, invalid SUBMITTED->REJECTED 409, UNDER_REVIEW->REJECTED w/o reason 400, doc MIME 415, PDF upload+list (storage_key hidden), download bytes + cross-tenant 404, verify VERIFIED + reject-without-reason 400, approval override path with audit, conversion idempotency (already_converted=true, same student_id), cross-tenant 404 on leads/apps, dashboard isolation, teacher-role 403 on POST /crm/leads and GET /admissions/applications. All 72 backend tests (24 foundation + 17 platform + 31 crm/adm) pass. Frontend: verified SchoolShell + all 9 sidebar testids, admissions-dashboard KPIs, inquiries page kanban (9 columns), config page, applications page render correctly. Found one frontend bug in CreateInquiryDialog.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "CreateInquiryDialog (pages/school/crm/CreateInquiryDialog.js)", "issue": "Submitting the form without a parent_email sends parent_email: \"\" (empty string) which fails Pydantic EmailStr validation and the API responds 422 (validation_error). Dialog stays open with no visible user feedback beyond a generic toast. Repro: open btn-new-inquiry, fill required fields only, click inq-submit -> 422 in devtools. Fix: strip empty-string optional fields (parent_email, student_dob, class_seeking, academic_year, notes) before posting, or send null.", "selector": "[data-testid=\"inq-submit\"]", "priority": "HIGH"}
+    ],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "CreateInquiryDialog", "issues": ["Radix DialogContent missing aria-describedby (console warning) — a11y-only, non-blocking"]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_crm_admissions.py",
+    "/app/backend/tests/test_foundation.py",
+    "/app/backend/tests/test_platform_prompt1.py",
+    "/app/test_reports/pytest/iteration_5.xml"
+  ],
+  "action_items": [
+    "Fix CreateInquiryDialog: omit or null-out empty-string optional fields (esp. parent_email) before POST /school/crm/leads to avoid 422 EmailStr validation error.",
+    "(Optional) Add aria-describedby / DialogDescription to CreateInquiryDialog for a11y."
+  ],
+  "critical_code_review_comments": [
+    "admission_routes.upload_document: file.content_type is client-supplied and trusted. For hardening, sniff magic bytes (e.g. python-magic) rather than trusting the header — non-blocking for MVP.",
+    "crm_routes.list_leads: date_from/date_to filter on created_at only. Filter set intersects with $gte $lte on the same field — fine, but sort field whitelist is good.",
+    "conversion.py: request kwarg is optional but log_event is invoked with request=None fallback — OK. Guardian creation is single-guardian; multi-guardian model deferred to Student Master."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_crm_admissions.py (new)",
+    "/app/backend/tests/test_foundation.py (updated stale permission count assertion: '== 24' -> '>= 24' now that CRM+admission perms exist)"
+  ],
+  "success_rate": {"backend": "100% (72/72)", "frontend": "~90% — shell, sidebar, dashboards, kanban, config, applications pages render; create-inquiry dialog blocked by 422 bug"},
+  "test_credentials": "Registered ad-hoc tenants per-run; existing seed crm-admin@crm-27224.example.com / CrmAdmin@123 (tenant slug crm-27224) still usable.",
+  "seed_data_creation": "Each test run bootstraps two fresh tenants (crma-<hex>, crmb-<hex>) via /auth/register-school to guarantee isolation.",
+  "retest_needed": true,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Backend suite is a solid regression harness (72 tests, ~15s). For multipart POSTs from a requests.Session that has Content-Type=application/json in default headers, temporarily pop that header (see _multipart_post helper) so requests can set the correct multipart boundary — otherwise FastAPI returns 422 'Field required' for File/Form. Also note: create_lead uses EmailStr for parent_email — frontend must NOT send empty strings. Duplicate lead 409 envelope wraps HTTPException detail dict under body.error.details (details.code == 'duplicate_lead'). Conversion requires override_docs=true if approval was achieved via admission.override without verified docs.",
+  "rca of the issue": "CreateInquiryDialog initializes form.parent_email to empty string and posts it as-is. FastAPI's Pydantic EmailStr validator rejects empty strings, returning HTTP 422 with validation_error envelope. This blocks the primary create-inquiry UX. Fix in one place: before submit(), compute payload = Object.fromEntries(Object.entries(form).filter(([k,v]) => v !== '' && v !== null)); await api.post('/school/crm/leads', { ...payload, force });"
+}

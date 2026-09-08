@@ -51,7 +51,7 @@ P_USER_DELETE = "user.delete"
 P_ROLE_ASSIGN = "role.assign"
 P_AUDIT_VIEW_SCHOOL = "audit.view.school"
 
-# Future domain permissions (registered so RBAC UI can show/toggle them)
+# Future domain (declared so RBAC UI can toggle them)
 P_STUDENT_VIEW = "student.view"
 P_STUDENT_EDIT = "student.edit"
 P_ATTENDANCE_OVERRIDE = "attendance.override"
@@ -60,22 +60,80 @@ P_FEES_REFUND = "fees.refund"
 P_PAYROLL_PROCESS = "payroll.process"
 P_EXAM_PUBLISH = "exam.publish"
 P_LESSONPLAN_APPROVE = "lessonplan.approve"
-P_CRM_MANAGE = "crm.manage"
-P_CRM_CONVERT = "crm.convert"
+
+# CRM (Prompt 2)
+P_CRM_MANAGE = "crm.manage"       # legacy umbrella
+P_CRM_CONVERT = "crm.convert"     # legacy umbrella
+P_CRM_VIEW = "crm.view"
+P_CRM_CREATE = "crm.create"
+P_CRM_UPDATE = "crm.update"
+P_CRM_DELETE = "crm.delete"
+P_CRM_ASSIGN = "crm.assign"
+P_CRM_ACTIVITY_CREATE = "crm.activity.create"
+P_CRM_ACTIVITY_VIEW = "crm.activity.view"
+P_CRM_STAGE_MANAGE = "crm.stage.manage"
+P_CRM_CONFIG = "crm.config"
+
+# Admissions (Prompt 2)
+P_ADMISSION_VIEW = "admission.view"
+P_ADMISSION_CREATE = "admission.create"
+P_ADMISSION_UPDATE = "admission.update"
+P_ADMISSION_REVIEW = "admission.review"
+P_ADMISSION_APPROVE = "admission.approve"
+P_ADMISSION_REJECT = "admission.reject"
+P_ADMISSION_CONVERT = "admission.convert"
+P_ADMISSION_OVERRIDE = "admission.override"  # override missing-documents block
+P_ADMISSION_DOC_VIEW = "admission.document.view"
+P_ADMISSION_DOC_UPLOAD = "admission.document.upload"
+P_ADMISSION_DOC_VERIFY = "admission.document.verify"
+
+CRM_PERMISSIONS = {
+    P_CRM_MANAGE, P_CRM_CONVERT, P_CRM_VIEW, P_CRM_CREATE, P_CRM_UPDATE,
+    P_CRM_DELETE, P_CRM_ASSIGN, P_CRM_ACTIVITY_CREATE, P_CRM_ACTIVITY_VIEW,
+    P_CRM_STAGE_MANAGE, P_CRM_CONFIG,
+}
+
+ADMISSION_PERMISSIONS = {
+    P_ADMISSION_VIEW, P_ADMISSION_CREATE, P_ADMISSION_UPDATE,
+    P_ADMISSION_REVIEW, P_ADMISSION_APPROVE, P_ADMISSION_REJECT,
+    P_ADMISSION_CONVERT, P_ADMISSION_OVERRIDE, P_ADMISSION_DOC_VIEW,
+    P_ADMISSION_DOC_UPLOAD, P_ADMISSION_DOC_VERIFY,
+}
 
 ALL_PERMISSIONS = [
+    # Platform
     P_PLATFORM_MANAGE, P_TENANT_VIEW, P_TENANT_CREATE, P_TENANT_EDIT,
     P_TENANT_SUSPEND, P_AUDIT_VIEW_PLATFORM,
+    # School core
     P_SCHOOL_VIEW, P_SCHOOL_EDIT,
     P_USER_VIEW, P_USER_CREATE, P_USER_EDIT, P_USER_DELETE, P_ROLE_ASSIGN,
     P_AUDIT_VIEW_SCHOOL,
+    # Domains (student stub)
     P_STUDENT_VIEW, P_STUDENT_EDIT, P_ATTENDANCE_OVERRIDE,
     P_FEES_COLLECT, P_FEES_REFUND, P_PAYROLL_PROCESS,
     P_EXAM_PUBLISH, P_LESSONPLAN_APPROVE,
-    P_CRM_MANAGE, P_CRM_CONVERT,
+    # CRM + Admission
+    *sorted(CRM_PERMISSIONS),
+    *sorted(ADMISSION_PERMISSIONS),
 ]
 
 # --- Role → Permissions ---------------------------------------------------
+_FULL_CRM = set(CRM_PERMISSIONS)
+_FULL_ADMISSION = set(ADMISSION_PERMISSIONS)
+
+_ADMISSION_OFFICER = {
+    P_SCHOOL_VIEW, P_USER_VIEW,
+    # CRM full for their day-to-day work
+    P_CRM_VIEW, P_CRM_CREATE, P_CRM_UPDATE, P_CRM_ASSIGN,
+    P_CRM_ACTIVITY_CREATE, P_CRM_ACTIVITY_VIEW,
+    P_CRM_MANAGE,  # backwards compat
+    # Admissions — everything except approve/reject/convert/override
+    P_ADMISSION_VIEW, P_ADMISSION_CREATE, P_ADMISSION_UPDATE,
+    P_ADMISSION_REVIEW, P_ADMISSION_DOC_VIEW, P_ADMISSION_DOC_UPLOAD,
+    P_ADMISSION_DOC_VERIFY,
+    P_STUDENT_VIEW,
+}
+
 _SCHOOL_ADMIN_BASE = {
     P_SCHOOL_VIEW, P_SCHOOL_EDIT,
     P_USER_VIEW, P_USER_CREATE, P_USER_EDIT, P_USER_DELETE, P_ROLE_ASSIGN,
@@ -83,21 +141,20 @@ _SCHOOL_ADMIN_BASE = {
     P_STUDENT_VIEW, P_STUDENT_EDIT,
     P_ATTENDANCE_OVERRIDE, P_FEES_COLLECT, P_FEES_REFUND,
     P_PAYROLL_PROCESS, P_EXAM_PUBLISH, P_LESSONPLAN_APPROVE,
-    P_CRM_MANAGE, P_CRM_CONVERT,
+    *_FULL_CRM, *_FULL_ADMISSION,
 }
 
 ROLE_PERMISSIONS: dict[str, set[str]] = {
     ROLE_PLATFORM_SUPERADMIN: set(ALL_PERMISSIONS),
     ROLE_SCHOOL_OWNER: _SCHOOL_ADMIN_BASE,
-    ROLE_PRINCIPAL: _SCHOOL_ADMIN_BASE - {P_FEES_REFUND, P_PAYROLL_PROCESS},
+    ROLE_PRINCIPAL: _SCHOOL_ADMIN_BASE - {P_FEES_REFUND, P_PAYROLL_PROCESS, P_ADMISSION_OVERRIDE},
     ROLE_SCHOOL_ADMIN: _SCHOOL_ADMIN_BASE,
-    ROLE_ADMISSION_OFFICER: {
-        P_SCHOOL_VIEW, P_USER_VIEW,
-        P_CRM_MANAGE, P_CRM_CONVERT, P_STUDENT_VIEW,
-    },
+    ROLE_ADMISSION_OFFICER: _ADMISSION_OFFICER,
     ROLE_ACCOUNTANT: {
         P_SCHOOL_VIEW, P_USER_VIEW,
         P_FEES_COLLECT, P_FEES_REFUND, P_STUDENT_VIEW,
+        # Accountants may VIEW admission status for fees follow-up — read-only.
+        P_ADMISSION_VIEW,
     },
     ROLE_HR_OFFICER: {P_SCHOOL_VIEW, P_USER_VIEW, P_PAYROLL_PROCESS},
     ROLE_TEACHER: {P_SCHOOL_VIEW, P_STUDENT_VIEW},

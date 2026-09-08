@@ -99,3 +99,21 @@ Build the foundation of a production-ready multi-tenant SaaS platform called **S
 
 ## Not implemented (by design)
 All business domains beyond auth/tenants/users/roles/audit are scaffolded via permissions only. Their endpoints will land in `/api/v1/{domain}` in subsequent prompts.
+
+## Implemented (2026-02-09) — Prompt 2: CRM + Admissions
+### Backend
+- Extended RBAC with granular `crm.*` and `admission.*` permissions; ADMISSION_OFFICER role wired to the CRM-heavy subset.
+- New models: `CrmLead`, `CrmActivity`, `Followup`, `CampusVisit`, `AdmissionApplication`, `AdmissionDocument`, `AdmissionDocumentType`, `AdmissionConversion`, `AdmissionSettings`, `StudentStub`, `GuardianStub`.
+- New services: `numbering.py` (concurrency-safe `INQ/ADM/STU-YYYY-NNNNNN` via atomic counters), `storage.py` (`LocalFilesystemStorage` under `/app/storage/tenants/{tenant_id}/`), `conversion.py` (idempotent).
+- New routers: `/school/crm/*` (leads, duplicate detection, activities, follow-ups today/overdue/upcoming, visits + double-booking guard, settings, dashboard), `/school/admissions/*` (applications with state machine, doc upload/verify/reject + secure download, idempotent convert with `admission.override` guardrail).
+- New indexes on all Prompt-2 collections including uniqueness on `(tenant_id, inquiry_number)`, `(tenant_id, application_number)`, `(tenant_id, application_id)` for conversions.
+- All sensitive actions audited via existing `audit_service`.
+
+### Frontend
+- Introduced `SchoolShell` sidebar (Overview + Front Porch group + Administration group). Inherits tenant `branding.primary_color` / `accent_color`.
+- New pages: `AdmissionsDashboardPage` (10 KPIs + stage/source breakdown), `InquiriesPage` (kanban + list + filters + pagination), `CreateInquiryDialog` (live duplicate detection, force override), `KanbanBoard` (drag-drop stage moves), `InquiryDetailPage` (prospect profile — timeline + follow-ups + stage select + create-application), `ApplicationsPage`, `ApplicationDetailPage` (document checklist with progress bar, upload/verify/reject flow, state-machine status transitions, one-click Convert to Student), `CampusVisitsPage`, `CrmConfigPage` (stages, sources, doc types with required/optional/conditional selector, block-approval toggle).
+- `App.js` — nested routes under `/school` via `SchoolShell`; preserves original overview at `/school`.
+
+### Test results
+- **72/72 backend tests pass** (24 foundation + 17 platform Prompt 1 + 31 new CRM+admissions). Frontend Prompt 2 flows verified 100% (iter 6).
+- Prompt 0 and Prompt 1 remain fully green — no regressions.

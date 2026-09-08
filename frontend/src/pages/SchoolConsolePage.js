@@ -82,21 +82,18 @@ export default function SchoolConsolePage() {
   };
 
   return (
-    <div className="min-h-screen bg-[var(--paper)]" data-testid="school-console">
-      <ImpersonationBanner />
-      <AppHeader variant="console" />
-      <div className="max-w-[1400px] mx-auto px-6 lg:px-10 py-10">
-        <div className="overline mb-3">School Console</div>
-        <div className="flex flex-wrap items-end justify-between gap-4">
-          <div>
-            <h1 className="font-heading font-black text-4xl lg:text-5xl tracking-tighter" data-testid="school-title">
-              {school?.name || "Your school"}
-            </h1>
-            <div className="mt-2 font-mono text-xs text-[var(--tinted-grey-500)]">
-              tenant · <span data-testid="school-slug">{school?.slug || "—"}</span> · plan {school?.plan}
-            </div>
+    <div className="space-y-6" data-testid="school-console">
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <div className="overline mb-2">Overview</div>
+          <h1 className="font-heading font-black text-4xl lg:text-5xl tracking-tighter" data-testid="school-title">
+            {school?.name || "Your school"}
+          </h1>
+          <div className="mt-2 font-mono text-xs text-[var(--tinted-grey-500)]">
+            tenant · <span data-testid="school-slug">{school?.slug || "—"}</span> · plan {school?.plan}
           </div>
         </div>
+      </div>
 
         <div className="mt-10 grid grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-6">
           <KpiCard icon={Users} label="Users" value={users.length} hint={`Role: ${user?.role.replace(/_/g, " ")}`} />
@@ -262,7 +259,6 @@ export default function SchoolConsolePage() {
             </TabsContent>
           </Tabs>
         </div>
-      </div>
     </div>
   );
 }

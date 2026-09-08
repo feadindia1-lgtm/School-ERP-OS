@@ -44,3 +44,32 @@ async def ensure_indexes() -> None:
     )
     await db.refresh_tokens.create_index("expires_at", expireAfterSeconds=0)
     await db.refresh_tokens.create_index("jti", unique=True)
+
+    # CRM
+    await db.crm_leads.create_index([("tenant_id", 1), ("created_at", -1)])
+    await db.crm_leads.create_index([("tenant_id", 1), ("stage", 1)])
+    await db.crm_leads.create_index([("tenant_id", 1), ("assigned_to", 1)])
+    await db.crm_leads.create_index([("tenant_id", 1), ("parent_mobile", 1)])
+    await db.crm_leads.create_index([("tenant_id", 1), ("parent_email", 1)])
+    await db.crm_leads.create_index([("tenant_id", 1), ("inquiry_number", 1)], unique=True, sparse=True)
+    await db.crm_leads.create_index([("tenant_id", 1), ("academic_year", 1)])
+    await db.crm_leads.create_index([("tenant_id", 1), ("next_followup_at", 1)])
+    await db.crm_activities.create_index([("tenant_id", 1), ("lead_id", 1), ("created_at", -1)])
+    await db.followups.create_index([("tenant_id", 1), ("assigned_to", 1), ("due_at", 1)])
+    await db.followups.create_index([("tenant_id", 1), ("status", 1), ("due_at", 1)])
+    await db.campus_visits.create_index([("tenant_id", 1), ("scheduled_date", 1)])
+    await db.campus_visits.create_index([("tenant_id", 1), ("assigned_staff_id", 1), ("scheduled_date", 1)])
+
+    # Admissions
+    await db.admission_applications.create_index([("tenant_id", 1), ("created_at", -1)])
+    await db.admission_applications.create_index([("tenant_id", 1), ("status", 1)])
+    await db.admission_applications.create_index([("tenant_id", 1), ("academic_year", 1)])
+    await db.admission_applications.create_index([("tenant_id", 1), ("application_number", 1)], unique=True, sparse=True)
+    await db.admission_applications.create_index([("tenant_id", 1), ("lead_id", 1)])
+    await db.admission_documents.create_index([("tenant_id", 1), ("application_id", 1), ("type_code", 1)])
+    await db.admission_conversions.create_index([("tenant_id", 1), ("application_id", 1)], unique=True)
+    await db.admission_settings.create_index("tenant_id", unique=True)
+    await db.students.create_index([("tenant_id", 1), ("student_number", 1)], unique=True, sparse=True)
+    await db.students.create_index([("tenant_id", 1), ("application_id", 1)])
+    await db.guardians.create_index([("tenant_id", 1), ("student_id", 1)])
+    # Counters — single-doc per tenant/prefix/year, so plain _id is sufficient

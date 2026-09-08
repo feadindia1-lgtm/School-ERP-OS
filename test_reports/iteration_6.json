@@ -1,0 +1,32 @@
+{
+  "summary": "Iteration 6 re-test after CreateInquiryDialog fix (submit() now strips empty-string optional fields before POST /school/crm/leads). Backend regression: all 72 tests pass in ~16s. Frontend: platform admin login lands on /platform dashboard rendering KPIs and Recently Onboarded list. School admin login (crm-admin@crm-27224 / CrmAdmin@123) → /school/admissions/inquiries kanban loads. New-inquiry with only required fields (mobile +919999992222) succeeds — toast 'Inquiry created', dialog closes, INQ-2026-000002 appears in New Inquiry column. Duplicate flow with parent_mobile=+919000000001 shows duplicate-warning banner listing INQ-2026-000001; button switches to inq-create-anyway which force-creates INQ-2026-000003 successfully. Bug from iteration 5 is fully resolved.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "CreateInquiryDialog", "issues": ["Radix DialogContent still missing Description/aria-describedby (a11y console warning, non-blocking)"]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_foundation.py",
+    "/app/backend/tests/test_platform_prompt1.py",
+    "/app/backend/tests/test_crm_admissions.py",
+    "/app/test_reports/pytest/iteration_6.xml"
+  ],
+  "action_items": [
+    "(Optional, a11y-only) Add <DialogDescription> or aria-describedby to CreateInquiryDialog to silence Radix a11y warning."
+  ],
+  "critical_code_review_comments": [
+    "CreateInquiryDialog.submit() fix is correct and localized — filters out empty-string / null / undefined values before POST. force flag is still appended after the filter, so duplicate-force path is preserved.",
+    "Consider also applying the same empty-string strip in future forms that hit EmailStr/date validators (Applications, Users) to avoid recurrence."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "100% (72/72)", "frontend": "100% on tested flows (platform dashboard render, create inquiry happy-path, duplicate detection + force-create)"},
+  "test_credentials": "Platform: superadmin@schoolos.dev / SuperAdmin@123. School: crm-admin@crm-27224.example.com / CrmAdmin@123 (tenant slug crm-27224). Both working.",
+  "seed_data_creation": "Created two inquiries under tenant crm-27224 via UI: INQ-2026-000002 (TestFirst TestLast / +919999992222) and INQ-2026-000003 (DupFirst DupLast / +919000000001, force-created). Existing INQ-2026-000001 (Aarav Sharma) still in Form Filled column.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "CreateInquiryDialog fix verified. Tenant crm-27224 now has INQ-2026-000001..000003 seeded via UI runs. Backend suite (72 tests) remains the source-of-truth regression harness — run with `pytest backend/tests/ -v --tb=short`. For platform login the login form auto-routes to /platform for role=platform_admin without needing tenant slug; for school login the tenant field auto-fills once the email is typed (or is unnecessary because email is scoped by tenant subdomain-less flow in this env).",
+  "rca of the issue": "Previous 422 was caused by parent_email='' being sent to Pydantic EmailStr. Fix in CreateInquiryDialog.submit() constructs payload via Object.fromEntries(Object.entries(form).filter(([,v]) => v !== '' && v !== null && v !== undefined)) prior to POST, so empty optional fields are omitted. Verified end-to-end: happy-path create succeeds (INQ-2026-000002) and duplicate-force create succeeds (INQ-2026-000003)."
+}
