@@ -1,0 +1,33 @@
+{
+  "summary": "Iteration 8 retest of Prompt 3 Student Master after db.py index fix + student_routes regex escape. Ran full pytest suite (89 tests). 88/89 PASSED (98.9%). 3 of 4 previously failing tests now PASS (test_12_duplicate_force_bypasses, test_20_list_pagination_and_search, test_91_idempotent_conversion_second_call). test_90_shared_guardian_across_siblings STILL FAILS — but for a different reason than iteration 7. The index bug is confirmed fixed; the remaining failure is a business-logic gap in CRM leads duplicate detection that blocks sibling lead creation.",
+  "backend_issues": {
+    "critical": [
+      {
+        "endpoint": "POST /api/school/crm/leads",
+        "issue": "test_90_shared_guardian_across_siblings fails at the 2nd sibling's lead creation with 409 duplicate_lead. Root cause: create_lead() in crm_routes.py (lines 144-156) treats a shared parent_mobile as a duplicate, so siblings sharing a parent cannot both be admitted via the full pipeline (lead→app→convert). This blocks the intended 'shared guardian across siblings' feature. The iteration 7 db.py/regex fix did NOT touch this path. Options: (a) exclude shared-parent-mobile-only matches from duplicate detection when student_first/last/dob differ, or (b) update the test helper _admit() to pass force=true on subsequent siblings. Either is a business-logic decision for main agent.",
+        "priority": "HIGH"
+      }
+    ],
+    "minor": []
+  },
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_student_master.py",
+    "/app/test_reports/pytest/iteration_8.xml"
+  ],
+  "action_items": [
+    "Decide: relax CRM lead duplicate detection so a shared parent_mobile alone (without matching student name+dob) does not trigger 409, OR update test_90 _admit() helper to pass force=true on 2nd sibling lead creation. The former better matches the design intent of the 'shared guardian across siblings' feature."
+  ],
+  "critical_code_review_comments": [
+    "crm_routes.py create_lead(): duplicate detection treats parent_mobile alone as a duplicate — conflicts with legitimate sibling admissions. Consider requiring both parent_mobile + (matching student name/dob) or making parent_mobile+student_dob the composite key.",
+    "Index fix in db.py verified working — no student-level duplicate_admission errors observed in any test."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "98.9% (88/89)", "frontend": "not tested (per request)"},
+  "test_credentials": "superadmin@schoolos.dev / SuperAdmin@123; crm-admin@crm-27224.example.com / CrmAdmin@123",
+  "seed_data_creation": "None — tests self-seed via existing fixtures.",
+  "retest_needed": true,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "89-test full suite is stable. The lone remaining failure test_90_shared_guardian_across_siblings occurs at the CRM lead creation step (2nd sibling), NOT at student index level — index fix from iteration 8 works. Failure signature: 409 {code: duplicate_lead} at line 285 of test_student_master.py. Fix must be in crm_routes.py create_lead() duplicate detection logic OR in test helper _admit().",
+  "rca of the issue": "In crm_routes.py:145-154, create_lead() OR-matches on parent_mobile, parent_email, and (student_first/last + dob). For siblings sharing a parent_mobile, the OR clause hits the parent_mobile branch and returns 409 duplicate_lead before the student can be created. The iteration 8 changes (index in db.py, regex escape in student_routes.py) do not touch this path. Reproduction: sibling1 leads/admit succeeds; sibling2 with same parent_mobile fails at POST /api/school/crm/leads with 409. Mitigation: either send force=true on subsequent siblings in the test helper, or change duplicate detection to require parent_mobile + student identity match together."
+}

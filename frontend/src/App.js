@@ -15,6 +15,12 @@ import ApplicationsPage from "@/pages/school/ApplicationsPage";
 import ApplicationDetailPage from "@/pages/school/ApplicationDetailPage";
 import CampusVisitsPage from "@/pages/school/CampusVisitsPage";
 import CrmConfigPage from "@/pages/school/CrmConfigPage";
+import StudentsPage from "@/pages/school/StudentsPage";
+import StudentDetailPage from "@/pages/school/StudentDetailPage";
+import GuardiansPage from "@/pages/school/GuardiansPage";
+import GuardianDetailPage from "@/pages/school/GuardianDetailPage";
+import FamiliesPage from "@/pages/school/FamiliesPage";
+import FamilyDetailPage from "@/pages/school/FamilyDetailPage";
 import PlatformShell from "@/components/PlatformShell";
 import PlatformDashboardPage from "@/pages/platform/PlatformDashboardPage";
 import PlatformSchoolsPage from "@/pages/platform/PlatformSchoolsPage";
@@ -61,6 +67,12 @@ export default function App() {
               <Route path="admissions/applications/:id" element={<ApplicationDetailPage />} />
               <Route path="admissions/visits" element={<CampusVisitsPage />} />
               <Route path="admissions/config" element={<CrmConfigPage />} />
+              <Route path="students" element={<StudentsPage />} />
+              <Route path="students/:id" element={<StudentDetailPage />} />
+              <Route path="guardians" element={<GuardiansPage />} />
+              <Route path="guardians/:id" element={<GuardianDetailPage />} />
+              <Route path="families" element={<FamiliesPage />} />
+              <Route path="families/:id" element={<FamilyDetailPage />} />
             </Route>
 
             <Route path="*" element={<Navigate to="/" replace />} />

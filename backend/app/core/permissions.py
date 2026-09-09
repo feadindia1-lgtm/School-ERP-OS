@@ -87,6 +87,36 @@ P_ADMISSION_DOC_VIEW = "admission.document.view"
 P_ADMISSION_DOC_UPLOAD = "admission.document.upload"
 P_ADMISSION_DOC_VERIFY = "admission.document.verify"
 
+# Student Master (Prompt 3)
+P_STUDENT_STATUS_MANAGE = "student.status.manage"
+P_STUDENT_ENROLL_VIEW = "student.enrollment.view"
+P_STUDENT_ENROLL_MANAGE = "student.enrollment.manage"
+P_STUDENT_GUARDIAN_VIEW = "student.guardian.view"
+P_STUDENT_GUARDIAN_MANAGE = "student.guardian.manage"
+P_STUDENT_DOC_VIEW = "student.document.view"
+P_STUDENT_DOC_UPLOAD = "student.document.upload"
+P_STUDENT_FAMILY_VIEW = "student.family.view"
+P_STUDENT_FAMILY_MANAGE = "student.family.manage"
+P_STUDENT_CREATE = "student.create"
+P_STUDENT_UPDATE_NEW = "student.update"
+P_GUARDIAN_VIEW = "guardian.view"
+P_GUARDIAN_CREATE = "guardian.create"
+P_GUARDIAN_UPDATE = "guardian.update"
+P_FAMILY_VIEW = "family.view"
+P_FAMILY_MANAGE = "family.manage"
+
+STUDENT_PERMISSIONS = {
+    P_STUDENT_STATUS_MANAGE, P_STUDENT_ENROLL_VIEW, P_STUDENT_ENROLL_MANAGE,
+    P_STUDENT_GUARDIAN_VIEW, P_STUDENT_GUARDIAN_MANAGE, P_STUDENT_DOC_VIEW,
+    P_STUDENT_DOC_UPLOAD, P_STUDENT_FAMILY_VIEW, P_STUDENT_FAMILY_MANAGE,
+    P_STUDENT_CREATE, P_STUDENT_UPDATE_NEW,
+    P_GUARDIAN_VIEW, P_GUARDIAN_CREATE, P_GUARDIAN_UPDATE,
+    P_FAMILY_VIEW, P_FAMILY_MANAGE,
+}
+
+# Backwards-compat alias — Prompt 2 tests import P_STUDENT_UPDATE.
+P_STUDENT_UPDATE = P_STUDENT_UPDATE_NEW
+
 CRM_PERMISSIONS = {
     P_CRM_MANAGE, P_CRM_CONVERT, P_CRM_VIEW, P_CRM_CREATE, P_CRM_UPDATE,
     P_CRM_DELETE, P_CRM_ASSIGN, P_CRM_ACTIVITY_CREATE, P_CRM_ACTIVITY_VIEW,
@@ -115,6 +145,8 @@ ALL_PERMISSIONS = [
     # CRM + Admission
     *sorted(CRM_PERMISSIONS),
     *sorted(ADMISSION_PERMISSIONS),
+    # Student Master
+    *sorted(STUDENT_PERMISSIONS),
 ]
 
 # --- Role → Permissions ---------------------------------------------------
@@ -142,6 +174,7 @@ _SCHOOL_ADMIN_BASE = {
     P_ATTENDANCE_OVERRIDE, P_FEES_COLLECT, P_FEES_REFUND,
     P_PAYROLL_PROCESS, P_EXAM_PUBLISH, P_LESSONPLAN_APPROVE,
     *_FULL_CRM, *_FULL_ADMISSION,
+    *STUDENT_PERMISSIONS,
 }
 
 ROLE_PERMISSIONS: dict[str, set[str]] = {

@@ -122,28 +122,11 @@ class AdmissionConversion(BaseDocument):
     metadata: dict = Field(default_factory=dict)
 
 
-# --- Placeholder Student / Guardian (Student Master arrives in a later prompt) ---
-class StudentStub(BaseDocument):
-    """Minimal student created at conversion. The full Student Master module will extend this."""
-    tenant_id: str
-    student_number: str
-    first_name: str
-    last_name: str
-    date_of_birth: str | None = None
-    gender: str | None = None
-    academic_year: str
-    class_name: str
-    application_id: str
-    status: str = "active"
-
-
-class GuardianStub(BaseDocument):
-    tenant_id: str
-    student_id: str
-    name: str
-    relationship: str = "guardian"
-    mobile: str
-    email: str | None = None
+# --- Placeholder Student / Guardian removed in Prompt 3 ---------------------
+# The canonical Student and Guardian models now live in `app.models.student`.
+# The Prompt-2 `StudentStub` and `GuardianStub` classes were EVOLVED IN PLACE
+# into `Student` and `Guardian`; the `students` and `guardians` collections
+# are preserved along with their `_id`s.
 
 
 # --- CRM / Admission settings (per tenant) ---------------------------------

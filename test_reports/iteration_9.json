@@ -1,0 +1,41 @@
+{
+  "summary": "Ran full pytest suite (89 tests, 2 workers). Result: 88 passed, 1 FAILED. test_90_shared_guardian_across_siblings STILL FAILS with 409 duplicate_lead when creating a second sibling with the same parent_mobile. The claimed refinement in /app/backend/app/api/v1/crm_routes.py (contact AND student match) was NOT actually implemented — the code still uses OR logic where parent_mobile alone triggers a duplicate. Original Prompt-2 duplicate test (test_11 in test_crm_admissions.py) currently passes ONLY because of this bug: it uses a DIFFERENT student first_name ('Aria2' vs 'Aria') and NO student_dob, matching only on parent_mobile. If crm_routes is truly fixed to AND-logic, test_11's 409 assertion will break and must be relaxed to send identical student name+DOB.",
+  "backend_issues": {
+    "critical": [
+      {
+        "endpoint": "POST /api/school/crm/leads",
+        "issue": "Duplicate-detection rule was NOT refined as described. crm_routes.py:144-156 still uses $or across parent_mobile / parent_email / (name+DOB), so ANY contact overlap blocks — sibling case still returns 409. Must be changed to AND: duplicate only when (parent_mobile match OR parent_email match) AND (student_first_name+student_last_name+student_dob match, case-insensitive).",
+        "priority": "CRITICAL"
+      }
+    ],
+    "minor": [
+      {
+        "endpoint": "test_crm_admissions.py::test_11_duplicate_lead_returns_409_with_details_code",
+        "issue": "After the real fix lands, this test will fail. It posts student_first_name='Aria2' (different from lead1 'Aria') and omits student_dob, so under AND-logic it is NOT a duplicate. Update payload to use identical name+DOB (Aria/Kapoor/2018-04-11) with same parent_mobile to preserve semantic (same student re-submitted with same parent = duplicate)."
+      }
+    ]
+  },
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_student_master.py",
+    "/app/backend/tests/test_crm_admissions.py",
+    "/app/test_reports/pytest/iteration_9.xml"
+  ],
+  "action_items": [
+    "Actually implement the described refinement in /app/backend/app/api/v1/crm_routes.py create_lead(): build contact_match ($or of parent_mobile/parent_email) and student_match (name+DOB triple, case-insensitive) as two separate query fragments and combine with $and; skip student_match when payload.student_dob is missing but then require BOTH contact AND some student signal to flag (or simply require both fragments — if no DOB provided, do not flag). Mirror same logic in check_duplicate for consistency.",
+    "Update test_crm_admissions.py::test_11 to submit identical student_first_name='Aria', student_last_name='Kapoor', student_dob='2018-04-11' along with same parent_mobile so it remains a true duplicate under the new AND rule.",
+    "Re-run full pytest suite to confirm 89/89 pass."
+  ],
+  "critical_code_review_comments": [
+    "crm_routes.py:144-156 — Implementation does not match commit description. OR-of-three-clauses is materially different from AND-of-(contact, student).",
+    "check_duplicate (crm_routes.py:110-132) has the same OR bug; it will return false-positive duplicates for siblings sharing a parent phone. Should be kept in sync with create_lead logic."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "98.9% (88/89)", "frontend": "n/a (skipped per request)"},
+  "test_credentials": "superadmin@schoolos.dev / SuperAdmin@123 ; crm-admin@crm-<RUN>.example.com / CrmAdmin@123 (bootstrap fixtures create per-run tenants)",
+  "seed_data_creation": "None beyond what test fixtures create.",
+  "retest_needed": true,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Only 1 failing test: test_90_shared_guardian_across_siblings. Root cause is in crm_routes.py create_lead duplicate detection — OR logic instead of AND. Fixing that WILL likely break test_11 in test_crm_admissions.py unless payload is updated to send matching student name+DOB. After both changes, expect 89/89.",
+  "rca of the issue": "In /app/backend/app/api/v1/crm_routes.py::create_lead (lines 144-156), the duplicate query is built as {'tenant_id': ..., '$or': [{'parent_mobile': ...}, {'parent_email': ...}, {student name+DOB triple}]}. Any single contact match therefore triggers 409. When test_90 admits Sibling2 with the same shared_mobile used by Sibling1, the first clause matches Sibling1's lead and returns 409 duplicate_lead. Fix: replace $or with $and of a contact-match subquery ($or of mobile/email) and a student-match subquery (regex name + exact DOB). Do the same in check_duplicate for consistency, and adjust test_11 payload to include identical student name+DOB so it still represents a true duplicate."
+}

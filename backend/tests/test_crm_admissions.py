@@ -100,11 +100,13 @@ def test_10_create_lead_returns_INQ_number():
 
 
 def test_11_duplicate_lead_returns_409_with_details_code():
+    # Same student (name + DOB) resubmitted with same parent phone → duplicate.
     payload = {
-        "student_first_name": "Aria2",
+        "student_first_name": "Aria",
         "student_last_name": "Kapoor",
+        "student_dob": "2018-04-11",
         "parent_name": "Rohit Kapoor",
-        "parent_mobile": "+919812340001",  # same mobile
+        "parent_mobile": "+919812340001",
     }
     r = state["sA"].post(f"{API}/school/crm/leads", json=payload)
     assert r.status_code == 409

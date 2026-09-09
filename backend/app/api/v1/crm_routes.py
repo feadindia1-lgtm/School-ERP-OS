@@ -141,17 +141,22 @@ async def create_lead(
     user: dict = Depends(require_permission(P_CRM_CREATE)),
 ):
     db = get_db()
-    if not payload.force:
-        or_clauses = [{"parent_mobile": payload.parent_mobile}]
+    if not payload.force and payload.student_dob:
+        # A lead is a duplicate only when the *same student* (name + DOB)
+        # is submitted with an overlapping contact.  Siblings that share only
+        # a parent phone are legitimately allowed through.
+        contact_or = [{"parent_mobile": payload.parent_mobile}]
         if payload.parent_email:
-            or_clauses.append({"parent_email": payload.parent_email.lower()})
-        if payload.student_dob:
-            or_clauses.append({
-                "student_first_name": {"$regex": f"^{payload.student_first_name}$", "$options": "i"},
-                "student_last_name": {"$regex": f"^{payload.student_last_name}$", "$options": "i"},
-                "student_dob": payload.student_dob,
-            })
-        dup = await db.crm_leads.find_one({"tenant_id": user["tenant_id"], "$or": or_clauses})
+            contact_or.append({"parent_email": payload.parent_email.lower()})
+        dup = await db.crm_leads.find_one({
+            "tenant_id": user["tenant_id"],
+            "$and": [
+                {"$or": contact_or},
+                {"student_first_name": {"$regex": f"^{payload.student_first_name}$", "$options": "i"}},
+                {"student_last_name": {"$regex": f"^{payload.student_last_name}$", "$options": "i"}},
+                {"student_dob": payload.student_dob},
+            ],
+        })
         if dup:
             raise HTTPException(status_code=409, detail={"code": "duplicate_lead", "existing_lead_id": str(dup["_id"]), "message": "Possible existing inquiry found"})
 

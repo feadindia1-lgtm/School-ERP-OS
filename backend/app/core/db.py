@@ -69,7 +69,28 @@ async def ensure_indexes() -> None:
     await db.admission_documents.create_index([("tenant_id", 1), ("application_id", 1), ("type_code", 1)])
     await db.admission_conversions.create_index([("tenant_id", 1), ("application_id", 1)], unique=True)
     await db.admission_settings.create_index("tenant_id", unique=True)
-    await db.students.create_index([("tenant_id", 1), ("student_number", 1)], unique=True, sparse=True)
+    # Drop legacy Prompt-2 index if it exists (student_number no longer used by canonical Student).
+    try:
+        await db.students.drop_index("tenant_id_1_student_number_1")
+    except Exception:
+        pass
+    # Only admission_number is authoritative on the canonical Student Master.
+    await db.students.create_index(
+        [("tenant_id", 1), ("admission_number", 1)],
+        unique=True,
+        partialFilterExpression={"admission_number": {"$exists": True, "$type": "string"}},
+        name="uniq_admission_per_tenant",
+    )
+    await db.students.create_index([("tenant_id", 1), ("status", 1)])
+    await db.students.create_index([("tenant_id", 1), ("academic_year", 1), ("class_name", 1)])
+    await db.students.create_index([("tenant_id", 1), ("family_id", 1)])
     await db.students.create_index([("tenant_id", 1), ("application_id", 1)])
-    await db.guardians.create_index([("tenant_id", 1), ("student_id", 1)])
+    await db.guardians.create_index([("tenant_id", 1), ("mobile_primary", 1)])
+    await db.guardians.create_index([("tenant_id", 1), ("email", 1)])
+    await db.guardians.create_index([("tenant_id", 1), ("family_id", 1)])
+    await db.student_guardians.create_index([("tenant_id", 1), ("student_id", 1)])
+    await db.student_guardians.create_index([("tenant_id", 1), ("guardian_id", 1)])
+    await db.student_enrollments.create_index([("tenant_id", 1), ("student_id", 1), ("academic_year", 1)])
+    await db.student_enrollments.create_index([("tenant_id", 1), ("academic_year", 1), ("class_name", 1)])
+    await db.families.create_index([("tenant_id", 1), ("family_name", 1)])
     # Counters — single-doc per tenant/prefix/year, so plain _id is sufficient

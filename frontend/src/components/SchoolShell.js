@@ -77,6 +77,15 @@ export default function SchoolShell() {
             </div>
 
             <div>
+              <div className="overline px-3 mb-2 text-[9px]">Student Master</div>
+              <div className="space-y-1">
+                <SidebarLink to="/school/students" icon={GraduationCap} label="Students" testid="sch-nav-students" />
+                <SidebarLink to="/school/guardians" icon={ChalkboardTeacher} label="Guardians" testid="sch-nav-guardians" />
+                <SidebarLink to="/school/families" icon={Users} label="Families" testid="sch-nav-families" />
+              </div>
+            </div>
+
+            <div>
               <div className="overline px-3 mb-2 text-[9px]">Administration</div>
               <div className="space-y-1">
                 <SidebarLink to="/school/users" icon={Users} label="Users" testid="sch-nav-users" />

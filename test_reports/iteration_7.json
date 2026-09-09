@@ -1,0 +1,46 @@
+{
+  "summary": "Iteration 7 — Prompt 3 Student Master validation. Regression (Prompts 0/1/2): 72/72 green in ~13s. Added /app/backend/tests/test_student_master.py with 17 tests covering Student CRUD, duplicate/force, pagination/search/filter, PATCH, status change, enrollments (dup active year 409, snapshot update, patch), Guardian CRUD/search, student-guardian link/dup/unlink, Family CRUD+detail, shared-guardian-across-siblings, idempotent conversion, cross-tenant 404 (all endpoints), teacher RBAC 403, and audit-event coverage. 13/17 passed. 4 tests fail with the SAME root cause: MongoDB duplicate-key error on the sparse compound index (tenant_id, student_number) when inserting a Student whose `student_number` field is missing — MongoDB compound-sparse indexes include documents where ANY indexed field is present, so two students with tenant_id set + student_number missing collide with each other on `student_number: null`. This blocks (a) creating a second student with force=true, (b) all admission→student conversions after the first, (c) shared-guardian sibling flow, and (d) idempotent-conversion assertion. Frontend: login → /school lands; sidebar Student Master group shows sch-nav-students / sch-nav-guardians / sch-nav-families; /school/students renders students-page + students-table + btn-new-student and the new-student dialog contains all required testids (st-first, st-last, st-dob, st-gender, st-class, st-ay, st-submit); /school/guardians and /school/families both render with their -page/-table testids.",
+  "backend_issues": {
+    "critical": [
+      {"endpoint": "POST /api/v1/school/admissions/applications/{id}/convert AND POST /api/v1/school/students (2nd insert)", "issue": "500 Internal Error — pymongo DuplicateKeyError E11000 on index tenant_id_1_student_number_1 with `student_number: null`. Root cause: db.students index is declared sparse in /app/backend/app/core/db.py, but MongoDB *compound* sparse indexes include docs where at least one indexed field is present (tenant_id is), so two docs missing `student_number` both index as null and collide. All Student rows omit `student_number` (only `admission_number` is written), so ANY tenant that already has one student cannot receive a second student via /students or /convert.", "priority": "CRITICAL"}
+    ],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "New Student dialog (/school/students)", "issues": ["Date-of-birth field uses the browser's native <input type=date> picker (mm/dd/yyyy) instead of the shadcn Calendar/Popover used elsewhere — visual inconsistency."]},
+      {"screen": "Login modal Radix Dialog (from earlier iterations)", "issues": ["Radix a11y warning about missing DialogDescription still present (non-blocking)."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_student_master.py",
+    "/app/test_reports/pytest/iteration_7.xml",
+    "/app/test_reports/pytest/iteration_7_full.xml",
+    "/app/test_reports/pytest/iteration_7_regression.xml"
+  ],
+  "action_items": [
+    "CRITICAL: Fix the students collection unique index so a missing `student_number` does not trigger E11000. Two viable fixes: (a) replace `sparse=True` with `partialFilterExpression={'student_number': {'$exists': True}}` on the (tenant_id, student_number) unique index; or (b) drop that index entirely (only `admission_number` is used by new code — student_number is a legacy Prompt-2 field). Apply the same partialFilter treatment to (tenant_id, admission_number) for safety. Existing index will need to be manually dropped and recreated (Mongo silently no-ops create_index when a same-name index already exists with different options).",
+    "After fixing the index, re-run: `pytest /app/backend/tests/test_student_master.py -v` — expect all 17 green including test_12_duplicate_force_bypasses, test_20_list_pagination_and_search (depends on force insert), test_90_shared_guardian_across_siblings, and test_91_idempotent_conversion_second_call.",
+    "Consider migrating the new-student dialog DOB input from native <input type=date> to the shadcn Calendar/Popover used in the admissions dialog for consistency."
+  ],
+  "critical_code_review_comments": [
+    "conversion.py correctly reuses existing guardian by (tenant_id, mobile_primary) — semantics match the sibling-sharing requirement. Idempotency check via existing admission_conversion row + app.status==CONVERTED is sound. However this test could not verify runtime behavior because insert_one on students fails first.",
+    "student_routes.py: duplicate_student check uses regex `^{name}$` on user-provided input without re-escaping — special regex characters in a real name (e.g., `O'Brien`, dots, parens) could either crash or produce false negatives. Prefer case-insensitive collation or `re.escape`.",
+    "Student model has `student_code` but no `student_number` field — the db.py index on `student_number` is dead code that only creates bugs. Remove it.",
+    "In list_students & list_guardians, `q` regex is also unescaped — same injection/false-match risk.",
+    "student_routes.py returns raw `_out(doc)` for student creation, which includes `student_number: null` implicitly? No — `to_mongo(exclude_none=True)` strips it, so the response is fine. But this confirms the index-vs-payload mismatch."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_student_master.py (new)",
+    "/app/test_reports/iteration_7.json (this file)"
+  ],
+  "success_rate": {"backend": "95.5% (85/89 total; 13/17 on new Student Master suite; 72/72 regression)", "frontend": "100% on tested surfaces (login, sidebar Student Master group, /school/students+table+dialog testids, /school/guardians, /school/families)"},
+  "test_credentials": "Platform: superadmin@schoolos.dev / SuperAdmin@123. School: crm-admin@crm-27224.example.com / CrmAdmin@123 (tenant slug crm-27224). Both verified working.",
+  "seed_data_creation": "Test suite bootstraps two fresh tenants per run (stma-{run}, stmb-{run}); no persistent seed added to tenant crm-27224 during this iteration. Existing STU-2026-000001 (Zara Khan) from earlier iteration still visible in crm-27224 /school/students.",
+  "retest_needed": true,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Regression suite is 72/72 across Prompts 0/1/2. New test_student_master.py (17 tests) has 4 failures all caused by the SAME MongoDB index bug — fix (tenant_id, student_number) unique index using partialFilterExpression or drop it. After fix, the 4 failing tests should pass. Note: the DEV MongoDB may need the stale non-partial index manually dropped: `db.students.dropIndex('tenant_id_1_student_number_1')` before startup recreates it correctly. Frontend testids all present and working; no frontend fixes needed.",
+  "rca of the issue": "MongoDB compound sparse indexes index a document whenever *any* of the indexed fields is present. The students collection has a `(tenant_id, student_number)` unique+sparse index. New Student inserts omit `student_number` (the Student pydantic model doesn't define it, and to_mongo() uses exclude_none=True). Because tenant_id is always present, each such doc is indexed with `student_number: null`. Two docs in the same tenant → E11000. Reproduction: (1) POST /school/students {first_name:'X', force:true} — first succeeds, second returns 500. (2) POST /convert on two approved applications in the same tenant — second returns 500. Fix: replace sparse=True with partialFilterExpression={'student_number': {'$exists': True}} in /app/backend/app/core/db.py (line 72), OR remove the index — Student model no longer uses student_number, only admission_number. Then manually drop the pre-existing non-partial index in Mongo and let startup recreate."
+}

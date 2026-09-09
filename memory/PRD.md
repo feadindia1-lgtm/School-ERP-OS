@@ -117,3 +117,28 @@ All business domains beyond auth/tenants/users/roles/audit are scaffolded via pe
 ### Test results
 - **72/72 backend tests pass** (24 foundation + 17 platform Prompt 1 + 31 new CRM+admissions). Frontend Prompt 2 flows verified 100% (iter 6).
 - Prompt 0 and Prompt 1 remain fully green — no regressions.
+
+## Implemented (2026-02-09) — Prompt 3: Student Master + Guardian/Family
+### Backend
+- Canonical `Student` model replaces the Prompt-2 `StudentStub` in place (same `students` collection, IDs preserved). Full identity, snapshot placement, provenance, and lifecycle state (8 states) columns.
+- New collections/models: `guardians`, `student_guardians` (M:N with relationship flags), `student_enrollments` (per-year history), `families` (sibling/fee scope container).
+- New service `services/conversion.py` runs idempotent Application→Student conversion (dedupe on `(tenant_id, application_id)` via `admission_conversions`).
+- New router `/api/v1/school/students*`, `/guardians*`, `/families*` — 24 endpoints total, all RBAC-gated by 12 new granular permissions (`student.*`, `guardian.*`, `family.*`, `student.guardian.*`, `student.enrollment.*`).
+- New aggregate endpoints: `GET /students/stats` (Total, Active, New-this-year, Missing-info); `GET /students/{id}/timeline` (audit stream); `GET /guardians/{id}/students` (reverse lookup).
+- Indexes on all new collections; tenant isolation enforced at query level; all mutating actions audited.
+
+### Frontend
+- `StudentsPage`: 4 KPI cards, status/class/year filters, sort dropdown, search, paginated table with clickable rows.
+- `StudentDetailPage`: header with initials/status pill, 6 tabs (Overview, Academic, Guardians, Documents inherited from admission, Enrollments, Timeline), status change with reason, link/unlink guardian dialog, new-enrollment dialog, cross-links to family/guardian pages.
+- `GuardiansPage` + `GuardianDetailPage`: search/paginated list, create dialog, inline edit, linked-students panel.
+- `FamiliesPage` + `FamilyDetailPage`: create dialog, siblings + guardians panels, inline edit.
+- Routes registered under existing `SchoolShell`.
+
+### Test results
+- **91/91 backend tests pass** (24 foundation + 17 Prompt 1 + 31 Prompt 2 + 17 Prompt 3 + 2 new endpoint E2E). 0 regressions.
+- Frontend Prompt 3 flows verified end-to-end (KPIs, tabs, dialogs, cross-navigation, tenant isolation).
+
+### Architectural guarantees
+- **Single Student Master** — `StudentStub` code path removed; conversion writes directly to `students`.
+- **Idempotent admission conversion** — repeat calls return the same `student_id`.
+- **No parallel collection** created for Prompt 3.
