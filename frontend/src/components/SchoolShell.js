@@ -3,7 +3,8 @@ import { useEffect, useState } from "react";
 import {
   ChartLineUp, Buildings, Users, ShieldCheck, ClockCounterClockwise, SignOut,
   User as UserIcon, House, GraduationCap, ChalkboardTeacher, Coins, ClipboardText,
-  Books, EnvelopeSimple, Sparkle, Kanban, Wall, Calendar, Gear,
+  Books, EnvelopeSimple, Sparkle, Kanban, Wall, Calendar, Gear, BookOpen,
+  DoorOpen, Bell, UsersThree,
 } from "@phosphor-icons/react";
 import { useAuth } from "@/context/AuthContext";
 import ImpersonationBanner from "@/components/ImpersonationBanner";
@@ -82,6 +83,21 @@ export default function SchoolShell() {
                 <SidebarLink to="/school/students" icon={GraduationCap} label="Students" testid="sch-nav-students" />
                 <SidebarLink to="/school/guardians" icon={ChalkboardTeacher} label="Guardians" testid="sch-nav-guardians" />
                 <SidebarLink to="/school/families" icon={Users} label="Families" testid="sch-nav-families" />
+              </div>
+            </div>
+
+            <div>
+              <div className="overline px-3 mb-2 text-[9px]">Academics</div>
+              <div className="space-y-1">
+                <SidebarLink to="/school/academic" icon={ChartLineUp} label="Overview" testid="sch-nav-academic-overview" end />
+                <SidebarLink to="/school/academic/years" icon={Calendar} label="Academic years" testid="sch-nav-academic-years" />
+                <SidebarLink to="/school/academic/classes-sections" icon={GraduationCap} label="Classes & sections" testid="sch-nav-classes-sections" />
+                <SidebarLink to="/school/academic/subjects" icon={BookOpen} label="Subjects" testid="sch-nav-subjects" />
+                <SidebarLink to="/school/academic/rooms" icon={DoorOpen} label="Rooms" testid="sch-nav-rooms" />
+                <SidebarLink to="/school/academic/bell-schedule" icon={Bell} label="Bell schedule" testid="sch-nav-bell" />
+                <SidebarLink to="/school/academic/calendar" icon={Calendar} label="School calendar" testid="sch-nav-calendar" />
+                <SidebarLink to="/school/academic/assignments" icon={UsersThree} label="Teacher assignments" testid="sch-nav-assignments" />
+                <SidebarLink to="/school/academic/board-config" icon={Gear} label="Board config" testid="sch-nav-board-config" />
               </div>
             </div>
 

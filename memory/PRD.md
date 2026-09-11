@@ -142,3 +142,30 @@ All business domains beyond auth/tenants/users/roles/audit are scaffolded via pe
 - **Single Student Master** — `StudentStub` code path removed; conversion writes directly to `students`.
 - **Idempotent admission conversion** — repeat calls return the same `student_id`.
 - **No parallel collection** created for Prompt 3.
+
+## Implemented (2026-02-11) — Prompt 4: Academic Structure & School Calendar
+### Backend
+- New models (`app/models/academic.py`): `AcademicYear`, `BoardConfig`, `AcademicClass`, `AcademicSection`, `Subject`, `SubjectGroup`, `Room`, `BellSchedule` (inline periods), `WorkingDayPolicy`, `Holiday`, `TeacherAssignment`. Preset dictionary `BOARD_PRESETS` for CBSE/ICSE/IB/IGCSE/STATE/CUSTOM (labels + term structure).
+- New RBAC block `ACADEMIC_PERMISSIONS` (10 granular): academic.view, academic.year.manage, academic.class.manage, academic.section.manage, academic.subject.manage, academic.room.manage, academic.schedule.manage, academic.calendar.manage, academic.assignment.manage, academic.board.config. School admin/owner/principal receive full set; teachers/class_teachers receive read-only view; admission officers receive view.
+- 24 endpoints under `/api/v1/school/academic/*` with full RBAC + tenant scoping + audit logging.
+- Validation rules: unique class code per year, unique section name per class, unique subject/room code per tenant, bell-schedule period non-overlap + no duplicate period_no, working-day/weekly-off conflict, teacher-user role validation, class-teacher uniqueness per section, teacher-assignment duplicate detection, historical year read-only (409 year_archived).
+- Student model extended with denormalized FKs (`academic_year_id`, `class_id`, `section_id`) alongside existing string snapshots — kept both maintained for backward compatibility (per user choice 1a).
+- Indexes: 15 new indexes covering all uniqueness + query paths.
+
+### Frontend
+- 9 new pages under `pages/school/academic/*`: AcademicOverviewPage (8-tile dashboard), AcademicYearsPage (create/set-current/archive), ClassesSectionsPage (nested), SubjectsPage (tabbed subjects+groups), RoomsPage, BellScheduleEditorPage (period grid + save), WorkingDaysHolidaysPage (weekday toggles + holidays), TeacherAssignmentsPage (matrix), BoardConfigPage (preset+labels+terms).
+- Shared helpers `useAcademicYears` / `useCurrentYear` (localStorage-backed year selector) in `academic/_shared.js`.
+- `SchoolShell` sidebar extended with "Academics" group (9 links); 10 nested routes registered in `App.js`.
+
+### Test results
+- **127/127 backend pytest** (89 foundation/CRM/admissions/student + 2 endpoint E2E + 36 academic). Zero regressions.
+- **Frontend E2E fully green** — every data-testid resolved, every mutation flow verified.
+
+### Board terminology handling
+Presets + admin override implemented per user choice 2c. GET /board-config seeds from tenant.board (falls back to CBSE) and always returns the presets dictionary for the UI to offer as radio buttons; PATCH applies user overrides that survive preset changes.
+
+### Grading scale / marks
+Deferred to Prompt 6 (Exams) per user choice 3b; `marking_style` field on BoardConfig captures the placeholder without affecting current behaviour.
+
+### Teacher assignment source
+Points to existing `users` collection filtered by role in {teacher, class_teacher} per user choice 4a; no separate Teacher/Staff model introduced.

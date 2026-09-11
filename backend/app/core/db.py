@@ -94,3 +94,29 @@ async def ensure_indexes() -> None:
     await db.student_enrollments.create_index([("tenant_id", 1), ("academic_year", 1), ("class_name", 1)])
     await db.families.create_index([("tenant_id", 1), ("family_name", 1)])
     # Counters — single-doc per tenant/prefix/year, so plain _id is sufficient
+
+    # --- Academic Structure (Prompt 4) ---
+    await db.academic_years.create_index([("tenant_id", 1), ("name", 1)], unique=True, name="uniq_academic_year")
+    await db.academic_years.create_index([("tenant_id", 1), ("is_current", 1)])
+    await db.board_configs.create_index("tenant_id", unique=True)
+    await db.academic_classes.create_index([("tenant_id", 1), ("academic_year_id", 1), ("code", 1)], unique=True, name="uniq_class_code")
+    await db.academic_classes.create_index([("tenant_id", 1), ("academic_year_id", 1), ("order", 1)])
+    await db.academic_sections.create_index(
+        [("tenant_id", 1), ("class_id", 1), ("name", 1)],
+        unique=True, name="uniq_section_per_class",
+    )
+    await db.academic_sections.create_index([("tenant_id", 1), ("academic_year_id", 1)])
+    await db.subjects.create_index([("tenant_id", 1), ("code", 1)], unique=True, name="uniq_subject_code")
+    await db.subjects.create_index([("tenant_id", 1), ("name", 1)])
+    await db.subject_groups.create_index([("tenant_id", 1), ("academic_year_id", 1), ("class_id", 1)])
+    await db.rooms.create_index([("tenant_id", 1), ("code", 1)], unique=True, name="uniq_room_code")
+    await db.rooms.create_index([("tenant_id", 1), ("room_type", 1)])
+    await db.bell_schedules.create_index([("tenant_id", 1), ("academic_year_id", 1), ("name", 1)], unique=True, name="uniq_bell_schedule")
+    await db.working_day_policies.create_index([("tenant_id", 1), ("academic_year_id", 1)], unique=True, name="uniq_working_day_policy")
+    await db.holidays.create_index([("tenant_id", 1), ("academic_year_id", 1), ("start_date", 1)])
+    await db.teacher_assignments.create_index(
+        [("tenant_id", 1), ("academic_year_id", 1), ("teacher_user_id", 1),
+         ("class_id", 1), ("section_id", 1), ("subject_id", 1)],
+        unique=True, name="uniq_teacher_assignment",
+    )
+    await db.teacher_assignments.create_index([("tenant_id", 1), ("class_id", 1), ("section_id", 1)])

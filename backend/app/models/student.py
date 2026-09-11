@@ -44,8 +44,11 @@ class Student(BaseDocument):
 
     # Current academic snapshot (history in student_enrollments)
     academic_year: str | None = None
+    academic_year_id: str | None = None    # FK -> academic_years._id (Prompt 4)
     class_name: str | None = None
+    class_id: str | None = None            # FK -> academic_classes._id (Prompt 4)
     section: str | None = None
+    section_id: str | None = None          # FK -> academic_sections._id (Prompt 4)
     house: str | None = None
 
     # Address
@@ -118,8 +121,11 @@ class StudentEnrollment(BaseDocument):
     tenant_id: str
     student_id: str
     academic_year: str
+    academic_year_id: str | None = None    # FK (Prompt 4)
     class_name: str
+    class_id: str | None = None            # FK (Prompt 4)
     section: str | None = None
+    section_id: str | None = None          # FK (Prompt 4)
     roll_number: str | None = None
     house: str | None = None
     enrollment_status: str = "active"    # active | promoted | detained | withdrawn

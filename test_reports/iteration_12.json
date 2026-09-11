@@ -1,0 +1,31 @@
+{
+  "summary": "Prompt 4 (Academic Structure & School Calendar) full regression + E2E. Backend: pytest 127/127 pass in 24.27s (89 foundation + 2 endpoint + 36 academic). Frontend: registered fresh tenant via /api/v1/auth/register-school, logged in, and exercised every /school/academic/* page. AcademicOverviewPage renders empty state 'Create your first academic year to bootstrap the framework.' and after seeding renders 8 KPI tiles with correct live counts (Classes 1, Sections 1, Subjects 1, Rooms 1, Bell schedules 1, Holidays 1, Assignments 0, Students(year) 0) plus year selector with 'CURRENT' pill. AcademicYearsPage: created 2026-27 (current) and 2027-28 (planning), status pills render, Set current/Archive action buttons visible. ClassesSectionsPage: class-block-{id} + section-row-{id} render after create. SubjectsPage: tab-subjects/tab-groups switch; btn-new-subject dialog (sb-name/sb-code/sb-submit) creates row. RoomsPage: rm-name/rm-code/rm-cap dialog creates Room 101/R101. BellScheduleEditorPage: btn-new-schedule creates schedule, bell-editor + btn-add-period + btn-save-periods work. WorkingDaysHolidaysPage: wd-*/wo-*/hd-* toggles, btn-save-policy persists, btn-new-holiday dialog (hl-name/start/end) creates Diwali holiday. BoardConfigPage: bc-board-select + bc-class-label + bc-section-label + bc-terms with term-input/btn-add-term/term-del-{i} + btn-save-config functional. TeacherAssignmentsPage: ta-year-select/ta-class-filter/btn-new-assignment present (empty state shown; teacher user creation prerequisite noted). All data-testids in the review spec were located on the DOM and interactive.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_academic.py",
+    "/app/backend/tests/test_new_endpoints.py",
+    "/app/backend/tests/test_student_master.py",
+    "/app/backend/tests/test_crm_admissions.py",
+    "/app/backend/tests/test_foundation.py",
+    "/app/test_reports/pytest/iter12.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "TeacherAssignmentsPage requires a teacher user to be created via /school/users before the dialog is fully testable end-to-end. Consider a helper CTA/link on empty-state that deep-links to user creation.",
+    "AcademicOverviewPage counts are read-only aggregates; ensure they invalidate/refetch when current year is switched (spot-checked working during test).",
+    "Board config PATCH silently succeeds on empty patch; consider disabling btn-save-config when no changes are pending."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "100% (127/127)", "frontend": "100% of listed data-testids present and interactive on all 9 academic pages"},
+  "test_credentials": "Fresh per-run tenants via POST /api/v1/auth/register-school. Note: contact_email must use a real TLD (example.com, not .test — .test is reserved and rejected by pydantic EmailStr).",
+  "seed_data_creation": "One fresh tenant per test run; each page seeded its own minimal fixture (year, class, section, subject, room, schedule, period, policy, holiday).",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Prompt 4 fully green — backend 127/127 and every /school/academic/* page renders and mutates. Teacher assignments happy-path (btn-new-assignment → ta-teacher-select → ta-submit) not fully exercised because no teacher user existed in the fresh tenant; create one via POST /api/v1/school/users first if you need to cover that flow. All other flows covered.",
+  "rca of the issue": "N/A"
+}

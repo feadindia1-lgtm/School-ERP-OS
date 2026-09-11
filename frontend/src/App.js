@@ -21,6 +21,15 @@ import GuardiansPage from "@/pages/school/GuardiansPage";
 import GuardianDetailPage from "@/pages/school/GuardianDetailPage";
 import FamiliesPage from "@/pages/school/FamiliesPage";
 import FamilyDetailPage from "@/pages/school/FamilyDetailPage";
+import AcademicOverviewPage from "@/pages/school/academic/AcademicOverviewPage";
+import AcademicYearsPage from "@/pages/school/academic/AcademicYearsPage";
+import ClassesSectionsPage from "@/pages/school/academic/ClassesSectionsPage";
+import SubjectsPage from "@/pages/school/academic/SubjectsPage";
+import RoomsPage from "@/pages/school/academic/RoomsPage";
+import BellScheduleEditorPage from "@/pages/school/academic/BellScheduleEditorPage";
+import WorkingDaysHolidaysPage from "@/pages/school/academic/WorkingDaysHolidaysPage";
+import TeacherAssignmentsPage from "@/pages/school/academic/TeacherAssignmentsPage";
+import BoardConfigPage from "@/pages/school/academic/BoardConfigPage";
 import PlatformShell from "@/components/PlatformShell";
 import PlatformDashboardPage from "@/pages/platform/PlatformDashboardPage";
 import PlatformSchoolsPage from "@/pages/platform/PlatformSchoolsPage";
@@ -73,6 +82,15 @@ export default function App() {
               <Route path="guardians/:id" element={<GuardianDetailPage />} />
               <Route path="families" element={<FamiliesPage />} />
               <Route path="families/:id" element={<FamilyDetailPage />} />
+              <Route path="academic" element={<AcademicOverviewPage />} />
+              <Route path="academic/years" element={<AcademicYearsPage />} />
+              <Route path="academic/classes-sections" element={<ClassesSectionsPage />} />
+              <Route path="academic/subjects" element={<SubjectsPage />} />
+              <Route path="academic/rooms" element={<RoomsPage />} />
+              <Route path="academic/bell-schedule" element={<BellScheduleEditorPage />} />
+              <Route path="academic/calendar" element={<WorkingDaysHolidaysPage />} />
+              <Route path="academic/assignments" element={<TeacherAssignmentsPage />} />
+              <Route path="academic/board-config" element={<BoardConfigPage />} />
             </Route>
 
             <Route path="*" element={<Navigate to="/" replace />} />
