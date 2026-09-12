@@ -154,6 +154,7 @@ class TeacherAssignment(BaseDocument):
     tenant_id: str
     academic_year_id: str
     teacher_user_id: str            # FK -> users._id (must have role=teacher/class_teacher)
+    employee_id: str | None = None  # FK -> employees._id (Prompt 5); kept in sync
     class_id: str
     section_id: str | None = None   # null = whole-class role
     subject_id: str | None = None   # null = class-teacher role

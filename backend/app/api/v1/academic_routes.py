@@ -947,6 +947,9 @@ async def create_teacher_assignment(payload: CreateTeacherAssignment, request: R
             raise HTTPException(status_code=400, detail="section_id must belong to the given class_id")
     if payload.subject_id and not await db.subjects.find_one({"_id": _oid(payload.subject_id), "tenant_id": user["tenant_id"]}):
         raise HTTPException(status_code=400, detail="subject_id not found")
+    # Resolve employee_id from teacher_user_id when an Employee row is linked.
+    emp = await db.employees.find_one({"tenant_id": user["tenant_id"], "user_id": payload.teacher_user_id})
+    resolved_employee_id = str(emp["_id"]) if emp else None
     # Class-teacher uniqueness — exactly one class-teacher per section per year.
     if payload.is_class_teacher:
         if not payload.section_id:
@@ -965,6 +968,7 @@ async def create_teacher_assignment(payload: CreateTeacherAssignment, request: R
     if dup:
         raise HTTPException(status_code=409, detail={"code": "duplicate_assignment", "message": "Identical assignment already exists"})
     doc = TeacherAssignment(tenant_id=user["tenant_id"], **payload.model_dump()).to_mongo()
+    if resolved_employee_id: doc["employee_id"] = resolved_employee_id
     res = await db.teacher_assignments.insert_one(doc); doc["_id"] = res.inserted_id
     await log_event(action="academic.assignment.create", resource="teacher_assignment",
                     resource_id=str(res.inserted_id), tenant_id=user["tenant_id"],

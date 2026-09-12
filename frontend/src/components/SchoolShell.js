@@ -4,7 +4,7 @@ import {
   ChartLineUp, Buildings, Users, ShieldCheck, ClockCounterClockwise, SignOut,
   User as UserIcon, House, GraduationCap, ChalkboardTeacher, Coins, ClipboardText,
   Books, EnvelopeSimple, Sparkle, Kanban, Wall, Calendar, Gear, BookOpen,
-  DoorOpen, Bell, UsersThree,
+  DoorOpen, Bell, UsersThree, IdentificationBadge, AirplaneTilt,
 } from "@phosphor-icons/react";
 import { useAuth } from "@/context/AuthContext";
 import ImpersonationBanner from "@/components/ImpersonationBanner";
@@ -98,6 +98,16 @@ export default function SchoolShell() {
                 <SidebarLink to="/school/academic/calendar" icon={Calendar} label="School calendar" testid="sch-nav-calendar" />
                 <SidebarLink to="/school/academic/assignments" icon={UsersThree} label="Teacher assignments" testid="sch-nav-assignments" />
                 <SidebarLink to="/school/academic/board-config" icon={Gear} label="Board config" testid="sch-nav-board-config" />
+              </div>
+            </div>
+
+            <div>
+              <div className="overline px-3 mb-2 text-[9px]">Staff</div>
+              <div className="space-y-1">
+                <SidebarLink to="/school/staff" icon={IdentificationBadge} label="Employees" testid="sch-nav-staff" end />
+                <SidebarLink to="/school/staff/dept-desig" icon={Buildings} label="Departments & designations" testid="sch-nav-dept-desig" />
+                <SidebarLink to="/school/staff/leave-types" icon={Gear} label="Leave types" testid="sch-nav-leave-types" />
+                <SidebarLink to="/school/staff/leaves" icon={AirplaneTilt} label="Leave applications" testid="sch-nav-leaves" />
               </div>
             </div>
 

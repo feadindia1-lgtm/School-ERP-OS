@@ -1,0 +1,31 @@
+{
+  "summary": "Prompt 5 (Staff Master + Leave Foundation) full regression + E2E. Backend: pytest 150/150 pass in 27.96s (89 foundation/CRM/admissions/student + 2 endpoint + 36 academic + 23 staff). Frontend: registered fresh tenants via /api/v1/auth/register-school, exercised every /school/staff/* page end-to-end. StaffPage (/school/staff) renders data-testid staff-page with all 4 KPI tiles (kpi-total, kpi-active, kpi-teaching, kpi-pending) reading 0. btn-new-employee opens dialog; leaving ne-code blank produced EMP-2026-0001 auto-code on submit and the row appeared with success toast 'Employee created'. DepartmentsDesignationsPage (/school/staff/dept-desig): tab-depts/tab-desigs switch; created 'Science/SCI' department (dept-del-{id} rendered) and 'Teacher/TCH' designation (desig-del-{id} rendered). LeaveTypesPage (/school/staff/leave-types): btn-new-leave-type dialog exposes lt-preset Radix Select with all 7 presets (CL/SL/EL/CO/ML/PL/LWP); picking 'Casual Leave (CL)' auto-populated lt-name='Casual Leave' and lt-code='CL'; lt-submit created the row with lt-active-{id} toggle and lt-del-{id} rendered. LeaveApplicationsPage (/school/staff/leaves): la-status-filter and btn-apply-leave both render. StaffDetailPage (/school/staff/{id}): renders staff-detail, header 'EMP-2026-0001 · Bob Test · ACTIVE · Full Time', staff-status-select (options: active/probation/on leave/suspended/resigned/terminated/retired/notice period) + staff-status-reason + staff-status-apply all functional (status changed to on_leave). All 4 tabs (stab-overview/stab-quals/stab-docs/stab-leave) present with correct sub-sections (Identity/Contact/Employment/Attendance Hooks, btn-add-qual, btn-add-doc, Balances + Applications panes). Sidebar 'STAFF' group renders Employees / Departments & designations / Leave types. Zero console/pageerrors during flows.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_staff.py",
+    "/app/backend/tests/test_academic.py",
+    "/app/backend/tests/test_new_endpoints.py",
+    "/app/backend/tests/test_student_master.py",
+    "/app/backend/tests/test_crm_admissions.py",
+    "/app/backend/tests/test_foundation.py",
+    "/app/test_reports/pytest/iter13.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "shadcn/Radix Select components (lt-preset, ne-dept-select, ne-desig-select, staff-status-select) are not native <select> — Playwright/testing tools must use click + role=option interaction. Consider documenting this in a testing README so agents don't blow time on select_option calls.",
+    "StaffDetailPage 'Apply' button remains visually disabled-looking (gray) even when a status is selected until reason is typed; on click it does work — consider enabling the visual state when status is chosen and reason optional (or make reason clearly required)."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "100% (150/150)", "frontend": "100% of listed data-testids present and interactive across all 5 staff pages"},
+  "test_credentials": "Fresh per-run tenants via POST /api/v1/auth/register-school (owner_email owner+<ts>@r.example.com / SchoolOwner@123). Platform admin superadmin@schoolos.dev / SuperAdmin@123 unchanged.",
+  "seed_data_creation": "One fresh tenant per test run; created department, designation, leave-type (Casual Leave preset), and employee (Bob Test → EMP-2026-0001) inside the tenant.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Prompt 5 fully green. Backend 150/150; frontend staff pages render, mutate, and integrate correctly with the API. Note the backend route prefix is /api/v1/school/staff/* (not /api/v1/staff/*). For Radix Selects, click the trigger then click get_by_role('option', name=...). Sidebar order + Staff group verified. Leave application submission via UI (la-emp/la-type/la-start/la-end/la-reason/la-half/la-submit) not exercised end-to-end this iteration but the dialog trigger btn-apply-leave and la-status-filter render; backend flow is covered by test_staff.py.",
+  "rca of the issue": "N/A"
+}

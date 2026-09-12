@@ -120,3 +120,24 @@ async def ensure_indexes() -> None:
         unique=True, name="uniq_teacher_assignment",
     )
     await db.teacher_assignments.create_index([("tenant_id", 1), ("class_id", 1), ("section_id", 1)])
+    await db.teacher_assignments.create_index([("tenant_id", 1), ("employee_id", 1)])
+
+    # --- Staff Master + Leave (Prompt 5) ---
+    await db.employees.create_index([("tenant_id", 1), ("employee_code", 1)], unique=True, name="uniq_employee_code")
+    await db.employees.create_index([("tenant_id", 1), ("status", 1)])
+    await db.employees.create_index([("tenant_id", 1), ("department_id", 1)])
+    await db.employees.create_index([("tenant_id", 1), ("designation_id", 1)])
+    await db.employees.create_index([("tenant_id", 1), ("user_id", 1)], sparse=True)
+    await db.employees.create_index([("tenant_id", 1), ("is_teaching_staff", 1)])
+    await db.employee_documents.create_index([("tenant_id", 1), ("employee_id", 1)])
+    await db.employee_qualifications.create_index([("tenant_id", 1), ("employee_id", 1)])
+    await db.staff_departments.create_index([("tenant_id", 1), ("code", 1)], unique=True, name="uniq_dept_code")
+    await db.staff_designations.create_index([("tenant_id", 1), ("code", 1)], unique=True, name="uniq_desig_code")
+    await db.leave_types.create_index([("tenant_id", 1), ("code", 1)], unique=True, name="uniq_leave_type_code")
+    await db.leave_balances.create_index(
+        [("tenant_id", 1), ("employee_id", 1), ("leave_type_id", 1), ("year", 1)],
+        unique=True, name="uniq_leave_balance",
+    )
+    await db.leave_applications.create_index([("tenant_id", 1), ("employee_id", 1), ("status", 1)])
+    await db.leave_applications.create_index([("tenant_id", 1), ("status", 1), ("created_at", -1)])
+    await db.leave_adjustments.create_index([("tenant_id", 1), ("employee_id", 1), ("leave_type_id", 1)])

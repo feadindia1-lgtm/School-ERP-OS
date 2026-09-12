@@ -169,3 +169,35 @@ Deferred to Prompt 6 (Exams) per user choice 3b; `marking_style` field on BoardC
 
 ### Teacher assignment source
 Points to existing `users` collection filtered by role in {teacher, class_teacher} per user choice 4a; no separate Teacher/Staff model introduced.
+
+## Implemented (2026-02-12) — Prompt 5 (Phase 2): Staff Master + Leave Foundation
+### Backend
+- New models (`app/models/staff.py`): `Department`, `Designation`, `Employee` (canonical), `EmployeeDocument`, `EmployeeQualification`, `LeaveType`, `LeaveBalance`, `LeaveApplication`, `LeaveAdjustment`.
+- Employee gains attendance hooks (`biometric_id`, `attendance_number`, `default_working_days`) — Prompt-6 Attendance will consume directly.
+- Auto EMP-YYYY-NNNN via existing `numbering` service; admin override supported with uniqueness enforcement (user choice 2c).
+- Employment types (full_time/part_time/contract/visiting/intern/consultant) and 8 lifecycle statuses (active/probation/on_leave/suspended/resigned/terminated/retired/notice_period).
+- Leave workflow with **per-type approval_steps (1 or 2)** — user choice 4c. Two-step routes pending → approved_l1 → approved; single-step goes straight to approved.
+- Leave presets shipped (CL/SL/EL/CO/ML/PL/LWP) returned inline with GET /leave-types; admin can start from a preset, override every field, or create fully custom — user choice 3c.
+- Balance auto-materialization on first leave application; approve debits, cancel restores, manual adjust writes to `leave_adjustments` audit trail.
+- 15 new RBAC permissions (`staff.*`, `leave.*`) wired to owner/admin/HR/teacher roles.
+- `TeacherAssignment` extended with optional `employee_id`; auto-resolved at write time from linked `users.employee_id` — no regression to Prompt-4 API (user choice 1a).
+- 15 new DB indexes covering uniqueness + query paths.
+- New endpoints: 30 under `/api/v1/school/staff/*` — departments, designations, employees (CRUD + status + overview), documents, qualifications, leave-types (CRUD), leave-balances (list + adjust), leave-applications (list/apply/approve/reject/cancel).
+
+### Frontend
+- 5 new pages under `pages/school/staff/*`: `StaffPage` (KPIs + filters + pagination + create), `StaffDetailPage` (4-tab profile — Overview / Qualifications / Documents / Leave), `DepartmentsDesignationsPage` (tabbed CRUD), `LeaveTypesPage` (with preset selector + toggles), `LeaveApplicationsPage` (approve/reject/cancel + status filter).
+- Shared `useStaffMeta` hook centralises departments/designations/leaveTypes.
+- `SchoolShell` sidebar extended with "Staff" group (4 links).
+
+### Test results
+- **150/150 backend pytest** (89 foundation + 2 endpoint + 36 academic + 23 staff). Zero regressions.
+- Frontend E2E fully green — every data-testid resolved, flows verified (dept/desig/leave-type creation, employee auto-code, status change, tab navigation, leave-type preset auto-fill).
+
+### Deliberately NOT built (per prompt scope)
+- Payroll — deferred to a later prompt.
+- Salary structure / components / bank details beyond the free-form `kyc` blob on Employee.
+
+### Prioritized backlog after Prompt 5
+- **P0 · Prompt 6 — Attendance**: student (class-teacher / period-wise / biometric) + staff daily register, override audits, monthly summary — consumes Prompt-4 bell schedule + working-days + Prompt-5 employee.attendance_number/biometric_id.
+- **P0 · Prompt 7 — Fees**: fee heads/structures, invoicing, collection, refunds, family-scoped billing.
+- **P1**: Timetable & proxy engine, Payroll (leverages LeaveBalance), Exams & report cards.

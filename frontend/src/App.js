@@ -30,6 +30,11 @@ import BellScheduleEditorPage from "@/pages/school/academic/BellScheduleEditorPa
 import WorkingDaysHolidaysPage from "@/pages/school/academic/WorkingDaysHolidaysPage";
 import TeacherAssignmentsPage from "@/pages/school/academic/TeacherAssignmentsPage";
 import BoardConfigPage from "@/pages/school/academic/BoardConfigPage";
+import StaffPage from "@/pages/school/staff/StaffPage";
+import StaffDetailPage from "@/pages/school/staff/StaffDetailPage";
+import DepartmentsDesignationsPage from "@/pages/school/staff/DepartmentsDesignationsPage";
+import LeaveTypesPage from "@/pages/school/staff/LeaveTypesPage";
+import LeaveApplicationsPage from "@/pages/school/staff/LeaveApplicationsPage";
 import PlatformShell from "@/components/PlatformShell";
 import PlatformDashboardPage from "@/pages/platform/PlatformDashboardPage";
 import PlatformSchoolsPage from "@/pages/platform/PlatformSchoolsPage";
@@ -91,6 +96,11 @@ export default function App() {
               <Route path="academic/calendar" element={<WorkingDaysHolidaysPage />} />
               <Route path="academic/assignments" element={<TeacherAssignmentsPage />} />
               <Route path="academic/board-config" element={<BoardConfigPage />} />
+              <Route path="staff" element={<StaffPage />} />
+              <Route path="staff/dept-desig" element={<DepartmentsDesignationsPage />} />
+              <Route path="staff/leave-types" element={<LeaveTypesPage />} />
+              <Route path="staff/leaves" element={<LeaveApplicationsPage />} />
+              <Route path="staff/:id" element={<StaffDetailPage />} />
             </Route>
 
             <Route path="*" element={<Navigate to="/" replace />} />
