@@ -230,3 +230,38 @@ Points to existing `users` collection filtered by role in {teacher, class_teache
 - Timetable, Proxy Teacher, Fees, Payroll, Parent Portal, mobile apps.
 - Commercial face-match provider — pluggable hook only.
 - Period-wise attendance — placeholders in session model (`period_no`, `timetable_slot_id`) for Prompt-7 Timetable.
+
+
+## Implemented (2026-02-14) — Prompt 7: Timetable Engine + Proxy Scheduling
+### Backend
+- 4 new models in `app/models/timetable.py`: `TimetableSectionMeta` (publish/lock status per section), `TimetableSlot` (one weekday-period cell), `Substitution` (per-date override — snapshots the original slot so later master edits don't rewrite history), `ProxyConfig` (school-wide proxy rules).
+- Reuses Prompt-4 academic framework exactly as directed: `BellSchedule` is the authoritative source for periods, `WorkingDayPolicy` gates weekday writes (break periods and weekly-off days are rejected with explicit error codes `period_is_break` / `weekly_off_day` / `non_working_day`). No duplicate teacher identity model — teacher is identified by `teacher_user_id` with the `TeacherAssignment`/`Employee` linkage carried along as `teacher_employee_id`.
+- 7 new RBAC permissions: `timetable.view/manage/publish` and `proxy.view/manage/approve/config`. Wired to `_SCHOOL_ADMIN_BASE`, Principal and HR Officer; Teacher/Class-Teacher get read-only `timetable.view` + `proxy.view`.
+- 17 new endpoints under `/api/v1/school/timetable/*` and `/api/v1/school/proxy/*`:
+  - Slot CRUD + validate (dry-run conflict check) + `bulk-upsert` (atomic per-section grid replace with in-payload duplicate detection).
+  - Grid, teacher weekly schedule, section publish/lock, `for-date` daily view with substitution overlay.
+  - Proxy config get/put, `absences` (presumed-absent teachers for a date via leave + attendance-after-cutoff), `recommendations` (ranked candidates per affected period), substitution create/approve/reject/cancel.
+- **Non-destructive master timetable**: approving a substitution writes a daily override only. The master `TimetableSlot` is untouched.
+- Conflict engine detects: teacher double-book, room double-book, section-slot taken. All conflicts return structured `conflicts: [{code, message, slot_id, ...}]` payloads.
+- Absence detection honours the admin-configured `cutoff_time`; attendance signal only applies when the cutoff has elapsed (today after cutoff or historical dates). Future dates do not raise false absences.
+- Recommendation ranking is transparent: each candidate ships a `rank_score` and a `criteria` list (available, subject_match, same_grade, workload_penalty, max_proxy_reached) so the admin sees exactly why someone was ranked where. Candidates who are busy at that period or already absent are hard-filtered.
+- Max-proxy-per-day cap is enforced server-side. Approval remains authoritative — `auto_approve=True` on substitution-create only takes effect when the caller has `proxy.approve`.
+- In-app alerts fire for pending + approved substitutions via the existing `alert_service`. No SMS/Email providers wired this prompt.
+
+### Frontend
+- 3 new pages under `src/pages/school/timetable/`:
+  - `TimetableGridPage` — year/class/section/bell pickers, weekday × period grid, click-to-edit cell dialog with inline conflict display, publish and lock controls.
+  - `ProxyDashboardPage` — date + year pickers, "today's absences" list with affected periods, "Find substitute" opens a ranked candidate dialog showing each candidate's rank-score and reason breakdown. Pending substitutions can be approved/rejected; approved can be cancelled.
+  - `ProxyConfigPage` — toggles for leave/attendance absence sources, cutoff, auto-run, subject-match requirement, same-grade preference, max-per-day cap and in-app notification recipients.
+- Sidebar nav: new **Timetable** group (Master grid, Substitutes, Proxy rules).
+- `_shared.js` with `useYearPicker`, `useSectionPicker`, `useDatePicker`, `SUB_STATUS_TONE` and `WEEKDAY_LABELS` to keep each page lean.
+
+### Test results
+- **201/201 backend pytest** (172 earlier + 29 new in `tests/test_timetable.py`). Zero regressions.
+- 29 timetable tests cover: slot CRUD + the four conflict codes (`timetable_conflict`, `teacher_double_book`, `room_double_book`, `section_slot_taken`), break-period rejection, weekly-off rejection, bulk-upsert duplicate-cell detection, grid + teacher-weekly endpoints, publish + lock lifecycle, proxy config defaults + update, absence detection via approved leave, recommendation ranking (hard-filters busy and absent teachers), substitution lifecycle (create → approve → reject-after-approve-409 → cancel), same-teacher-substitute rejection, cross-tenant isolation, RBAC teacher cannot manage but can view.
+- Frontend E2E smoke verified by the testing agent (iteration_15): all three new pages load for a fresh school owner, sidebar links work, proxy dashboard renders the empty state when no absences, and proxy-config inputs persist across reload.
+
+### Explicitly NOT built per prompt scope
+- Fees, Payments, Payroll, Exams, Curriculum, Parent Portal, Mobile Apps, Communication providers (SMS/Email/WhatsApp).
+- Class/grade-specific multi-bell-schedule (data model supports it via `bell_schedule_id` on each `TimetableSlot` and `TimetableSectionMeta`, but only one school-wide bell is wired in UI).
+- Scheduled background auto-detect runner — `auto_run_enabled` + `auto_run_time` fields exist for later wiring (platform-crons prompt).
