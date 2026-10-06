@@ -190,7 +190,8 @@ export function AttendanceConfigPage() {
   const save = async () => {
     try {
       await api.put("/school/attendance/config", {
-        geofence_lat: cfg.geofence_lat, geofence_lng: cfg.geofence_lng,
+        geofence_lat: cfg.geofence_lat === "" ? null : Number(cfg.geofence_lat),
+        geofence_lng: cfg.geofence_lng === "" ? null : Number(cfg.geofence_lng),
         geofence_radius_m: Number(cfg.geofence_radius_m), max_gps_accuracy_m: Number(cfg.max_gps_accuracy_m),
         workday_start: cfg.workday_start, workday_end: cfg.workday_end,
         late_threshold_minutes: Number(cfg.late_threshold_minutes),

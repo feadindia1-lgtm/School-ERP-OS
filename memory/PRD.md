@@ -201,3 +201,32 @@ Points to existing `users` collection filtered by role in {teacher, class_teache
 - **P0 · Prompt 6 — Attendance**: student (class-teacher / period-wise / biometric) + staff daily register, override audits, monthly summary — consumes Prompt-4 bell schedule + working-days + Prompt-5 employee.attendance_number/biometric_id.
 - **P0 · Prompt 7 — Fees**: fee heads/structures, invoicing, collection, refunds, family-scoped billing.
 - **P1**: Timetable & proxy engine, Payroll (leverages LeaveBalance), Exams & report cards.
+
+## Implemented (2026-02-13) — Prompt 6: Attendance Engine (Staff + Student)
+### Backend
+- 7 new models in `app/models/attendance.py`: `AttendanceConfig`, `StaffAttendance`, `StaffAttendanceSession`, `OffCampusException`, `StudentQRToken`, `StudentAttendance`, `StudentAttendanceSession`, `AttendanceCorrection`.
+- `app/services/face_verification.py` — **pluggable** provider interface. `NoOpFaceProvider` ships: captures evidence, returns `NOT_VERIFIED`/`PENDING_REVIEW`, **never fabricates `VERIFIED`**. Future providers (AWS Rekognition / fal.ai) can be registered without touching attendance routes.
+- Three-layer staff clock flow (`POST /school/attendance/staff/clock`):
+  1. GPS accuracy must be ≤ `max_gps_accuracy_m`.
+  2. Haversine geofence check vs configurable `geofence_radius_m`. Off-campus requires an **approved** `OffCampusException` that covers today.
+  3. Face selfie stored via the existing storage service (filesystem backend behind `DocumentStorage` abstraction) — **storage_key only in Mongo, never base64**. Verifier returns status; manual review in `AttendanceCorrection` upgrades.
+- Opaque student QR tokens — `secrets.token_urlsafe(24)`. No PII in payload. Static with revocation + rotation; a revoked card is rejected immediately with 403 `token_revoked`.
+- Duplicate-scan debounce (`duplicate_scan_window_seconds`, default 60s) returns 409 `duplicate_scan`.
+- Correction workflow preserves `old_status`/`new_status`/`actor`/`approver`/`reason`/`decision_at`/`applied_at`. Approving writes a reference back to the day record's `override_notes` — original value preserved on the correction doc.
+- 11 new RBAC permissions (`attendance.*`), wired to teacher/HR/admin roles.
+- 11 new DB indexes.
+- 20 endpoints under `/api/v1/school/attendance/*`.
+
+### Frontend
+- 6 new pages under `pages/school/attendance/*`: StaffClockPage (3-step UI with camera + GPS tiles), StudentScannerPage (manual-entry + planned webcam), ClassAttendanceMarkerPage (bulk teacher mark), AttendanceRegisterPage (daily/5-tile rollup + staff/student tabs), CorrectionsPage (approve/reject/cancel inbox), AttendanceConfigPage (geofence/time/face toggles).
+- `SchoolShell` sidebar extended with "Attendance" group (6 links).
+
+### Test results
+- **172/172 backend pytest** (89 foundation/CRM/admissions/student + 2 endpoint + 36 academic + 23 staff + 22 attendance). Zero regressions.
+- 22 attendance tests cover every architecturally mandated failure case: poor GPS, outside geofence, missing face evidence, invalid/revoked/not-found QR, duplicate scan, cross-tenant isolation, correction preserves history, RBAC teacher cannot approve, audit event emission, token payload has no student id, face provider never fabricates VERIFIED.
+- Frontend E2E green — every data-testid resolved across all 6 pages.
+
+### Explicitly NOT built per prompt scope
+- Timetable, Proxy Teacher, Fees, Payroll, Parent Portal, mobile apps.
+- Commercial face-match provider — pluggable hook only.
+- Period-wise attendance — placeholders in session model (`period_no`, `timetable_slot_id`) for Prompt-7 Timetable.

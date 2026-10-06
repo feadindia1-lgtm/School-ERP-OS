@@ -1,0 +1,35 @@
+{
+  "summary": "Prompt 6 (Attendance Engine) full regression + E2E. Backend: pytest 172/172 pass in 28.08s (89 foundation/CRM/admissions/student + 2 endpoint + 36 academic + 23 staff + 22 attendance). Frontend: registered fresh tenant via /api/v1/auth/register-school, logged in as school_owner, granted geolocation to Delhi (28.6139, 77.2090), exercised every /school/attendance/* page end-to-end. (1) /school/attendance/config: data-testid attendance-config-page renders; all 12 required testids present (ac-lat, ac-lng, ac-radius, ac-acc, ac-start, ac-end, ac-late, ac-half, ac-dup, ac-face-req, btn-save-config, btn-use-current-location); PUT /school/attendance/config persisted (toast success). (2) /school/attendance/clock: staff-clock-page + btn-gps + btn-start-camera + btn-submit-clock + step-gps/step-geo/step-face all render; clicking btn-gps grabbed geolocation and step-gps tile updated to 'GPS LOCK ±20m'. (3) /school/attendance/scan: student-scanner-page + scan-input + btn-scan-submit + scan-recent render; typing invalid 'invalid-token-xyz' + Enter produced a scan-row-0 with 'Request failed · token_not_found'. (4) /school/attendance/class: class-marker-page + marker-date + marker-class + marker-section + marker-list + btn-save-marks render (marker-empty shown since no students). (5) /school/attendance/register: register-page + register-date + register-tiles (5 tiles: staff-present/staff-absent/student-present/student-absent/pending-corrections all zero) + tab-staff + tab-students + staff-register-table + student-register-table (student table mounts after switching to the students tab — Radix Tabs lazy render, not a bug). (6) /school/attendance/corrections: corrections-page + corr-status-filter + corr-empty + corrections-table render; switching filter to Approved re-queries and re-renders corr-empty. Zero pageerrors; the one console '404' observed on /scan is the expected server response for invalid token (token_not_found).",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_attendance.py",
+    "/app/backend/tests/test_staff.py",
+    "/app/backend/tests/test_academic.py",
+    "/app/backend/tests/test_new_endpoints.py",
+    "/app/backend/tests/test_student_master.py",
+    "/app/backend/tests/test_crm_admissions.py",
+    "/app/backend/tests/test_foundation.py",
+    "/app/test_reports/pytest/iter14.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "AttendanceRegisterPage renders register-tiles only after /overview resolves. If a tenant's /overview endpoint is slow or errors, the 5-tile row stays hidden — consider rendering a 'loading' placeholder with the same data-testid so test agents and users see a stable layout.",
+    "Student-register-table lives inside <TabsContent value='students'> which Radix mounts lazily. Previous testing agents may flag it 'MISSING' before clicking tab-students. Non-blocking but worth a note in a testing README (same guidance as previous iteration about Radix Select).",
+    "CorrectionsPage.act uses window.prompt() for approve/reject reason — fine for v1 but should move to an inline shadcn Dialog with a controlled textarea so Playwright + accessibility tooling can drive it cleanly.",
+    "StaffClockPage: btn-submit-clock is disabled until GPS coords are captured which is correct, but there is no inline hint explaining why — current state only shows the step tiles. A short helper line under the button would improve UX.",
+    "AttendanceConfigPage.save sends geofence_lat/lng as strings from the Input to the API (no Number() cast on lat/lng unlike radius/accuracy). Backend currently accepts them because Pydantic coerces, but explicit Number(cfg.geofence_lat) parity with the other numeric fields is safer."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "100% (172/172)", "frontend": "100% of listed data-testids present and interactive across all 6 attendance pages"},
+  "test_credentials": "Fresh per-run tenants via POST /api/v1/auth/register-school (owner_email owner+<ts>@r.example.com / SchoolOwner@123). Platform admin superadmin@schoolos.dev / SuperAdmin@123 unchanged.",
+  "seed_data_creation": "One fresh tenant per test run (slug att<ts>). No attendance records seeded — empty-state coverage is the critical path for the UI testids.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Prompt 6 fully green. Backend 172/172 (foundation 89, endpoints 2, academic 36, staff 23, attendance 22). All 22 attendance pytest cases cover: config GET/PUT + validation, staff clock geofence/GPS/face paths incl. multipart form-data + storage_key under 'tenants/', off-campus exception approve/clock-in, HR manual override, QR issue/list/rotate/revoke/scan (token payload has no student id), student scan entry/duplicate_scan window, bulk class mark, correction request→approve/reject preserving old/new, cross-tenant 404 isolation, teacher RBAC, and audit event emission. For Radix Tabs (tab-students) the pane is lazily mounted — click the trigger before asserting the inner table. For Radix Selects (corr-status-filter, clock-type, scan-type, marker-class, marker-section) use click trigger → get_by_role('option', name=...). Geolocation can be granted via context.grant_permissions + set_geolocation; headless Chromium works fine. REACT_APP_BACKEND_URL must be exported in shell before pytest because tests read it at import time (not auto-loaded from frontend/.env).",
+  "rca of the issue": "N/A — no issues found."
+}
