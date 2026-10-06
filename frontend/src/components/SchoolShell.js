@@ -6,6 +6,7 @@ import {
   Books, EnvelopeSimple, Sparkle, Kanban, Wall, Calendar, Gear, BookOpen,
   DoorOpen, Bell, UsersThree, IdentificationBadge, AirplaneTilt,
   Clock, QrCode, MapPin, PencilSimple, ListChecks,
+  CalendarCheck, UserSwitch, Table,
 } from "@phosphor-icons/react";
 import { useAuth } from "@/context/AuthContext";
 import ImpersonationBanner from "@/components/ImpersonationBanner";
@@ -121,6 +122,15 @@ export default function SchoolShell() {
                 <SidebarLink to="/school/attendance/class" icon={ChalkboardTeacher} label="Class attendance" testid="sch-nav-att-class" />
                 <SidebarLink to="/school/attendance/corrections" icon={PencilSimple} label="Corrections" testid="sch-nav-att-corr" />
                 <SidebarLink to="/school/attendance/config" icon={MapPin} label="Config" testid="sch-nav-att-config" />
+              </div>
+            </div>
+
+            <div>
+              <div className="overline px-3 mb-2 text-[9px]">Timetable</div>
+              <div className="space-y-1">
+                <SidebarLink to="/school/timetable" icon={Table} label="Master grid" testid="sch-nav-tt-grid" end />
+                <SidebarLink to="/school/timetable/proxy" icon={UserSwitch} label="Substitutes" testid="sch-nav-tt-proxy" />
+                <SidebarLink to="/school/timetable/proxy-config" icon={Gear} label="Proxy rules" testid="sch-nav-tt-proxy-config" />
               </div>
             </div>
 

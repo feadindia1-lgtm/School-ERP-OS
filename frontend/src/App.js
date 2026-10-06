@@ -39,6 +39,9 @@ import StaffClockPage from "@/pages/school/attendance/StaffClockPage";
 import StudentScannerPage from "@/pages/school/attendance/StudentScannerPage";
 import ClassAttendanceMarkerPage from "@/pages/school/attendance/ClassAttendanceMarkerPage";
 import { AttendanceRegisterPage, CorrectionsPage, AttendanceConfigPage } from "@/pages/school/attendance/pages";
+import TimetableGridPage from "@/pages/school/timetable/TimetableGridPage";
+import ProxyDashboardPage from "@/pages/school/timetable/ProxyDashboardPage";
+import ProxyConfigPage from "@/pages/school/timetable/ProxyConfigPage";
 import PlatformShell from "@/components/PlatformShell";
 import PlatformDashboardPage from "@/pages/platform/PlatformDashboardPage";
 import PlatformSchoolsPage from "@/pages/platform/PlatformSchoolsPage";
@@ -111,6 +114,9 @@ export default function App() {
               <Route path="attendance/register" element={<AttendanceRegisterPage />} />
               <Route path="attendance/corrections" element={<CorrectionsPage />} />
               <Route path="attendance/config" element={<AttendanceConfigPage />} />
+              <Route path="timetable" element={<TimetableGridPage />} />
+              <Route path="timetable/proxy" element={<ProxyDashboardPage />} />
+              <Route path="timetable/proxy-config" element={<ProxyConfigPage />} />
             </Route>
 
             <Route path="*" element={<Navigate to="/" replace />} />
