@@ -35,6 +35,10 @@ import StaffDetailPage from "@/pages/school/staff/StaffDetailPage";
 import DepartmentsDesignationsPage from "@/pages/school/staff/DepartmentsDesignationsPage";
 import LeaveTypesPage from "@/pages/school/staff/LeaveTypesPage";
 import LeaveApplicationsPage from "@/pages/school/staff/LeaveApplicationsPage";
+import StaffClockPage from "@/pages/school/attendance/StaffClockPage";
+import StudentScannerPage from "@/pages/school/attendance/StudentScannerPage";
+import ClassAttendanceMarkerPage from "@/pages/school/attendance/ClassAttendanceMarkerPage";
+import { AttendanceRegisterPage, CorrectionsPage, AttendanceConfigPage } from "@/pages/school/attendance/pages";
 import PlatformShell from "@/components/PlatformShell";
 import PlatformDashboardPage from "@/pages/platform/PlatformDashboardPage";
 import PlatformSchoolsPage from "@/pages/platform/PlatformSchoolsPage";
@@ -101,6 +105,12 @@ export default function App() {
               <Route path="staff/leave-types" element={<LeaveTypesPage />} />
               <Route path="staff/leaves" element={<LeaveApplicationsPage />} />
               <Route path="staff/:id" element={<StaffDetailPage />} />
+              <Route path="attendance/clock" element={<StaffClockPage />} />
+              <Route path="attendance/scan" element={<StudentScannerPage />} />
+              <Route path="attendance/class" element={<ClassAttendanceMarkerPage />} />
+              <Route path="attendance/register" element={<AttendanceRegisterPage />} />
+              <Route path="attendance/corrections" element={<CorrectionsPage />} />
+              <Route path="attendance/config" element={<AttendanceConfigPage />} />
             </Route>
 
             <Route path="*" element={<Navigate to="/" replace />} />

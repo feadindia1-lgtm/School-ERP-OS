@@ -5,6 +5,7 @@ import {
   User as UserIcon, House, GraduationCap, ChalkboardTeacher, Coins, ClipboardText,
   Books, EnvelopeSimple, Sparkle, Kanban, Wall, Calendar, Gear, BookOpen,
   DoorOpen, Bell, UsersThree, IdentificationBadge, AirplaneTilt,
+  Clock, QrCode, MapPin, PencilSimple, ListChecks,
 } from "@phosphor-icons/react";
 import { useAuth } from "@/context/AuthContext";
 import ImpersonationBanner from "@/components/ImpersonationBanner";
@@ -108,6 +109,18 @@ export default function SchoolShell() {
                 <SidebarLink to="/school/staff/dept-desig" icon={Buildings} label="Departments & designations" testid="sch-nav-dept-desig" />
                 <SidebarLink to="/school/staff/leave-types" icon={Gear} label="Leave types" testid="sch-nav-leave-types" />
                 <SidebarLink to="/school/staff/leaves" icon={AirplaneTilt} label="Leave applications" testid="sch-nav-leaves" />
+              </div>
+            </div>
+
+            <div>
+              <div className="overline px-3 mb-2 text-[9px]">Attendance</div>
+              <div className="space-y-1">
+                <SidebarLink to="/school/attendance/register" icon={ListChecks} label="Register" testid="sch-nav-att-register" />
+                <SidebarLink to="/school/attendance/clock" icon={Clock} label="Staff clock-in" testid="sch-nav-att-clock" />
+                <SidebarLink to="/school/attendance/scan" icon={QrCode} label="Gate scanner" testid="sch-nav-att-scan" />
+                <SidebarLink to="/school/attendance/class" icon={ChalkboardTeacher} label="Class attendance" testid="sch-nav-att-class" />
+                <SidebarLink to="/school/attendance/corrections" icon={PencilSimple} label="Corrections" testid="sch-nav-att-corr" />
+                <SidebarLink to="/school/attendance/config" icon={MapPin} label="Config" testid="sch-nav-att-config" />
               </div>
             </div>
 
