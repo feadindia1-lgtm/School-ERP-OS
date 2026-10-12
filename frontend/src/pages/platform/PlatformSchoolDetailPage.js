@@ -240,6 +240,9 @@ function ImpersonateButton({ reason, setReason, onConfirm }) {
           </Button>
         </DialogFooter>
       </DialogContent>
+    </Dialog>
+  );
+}
 
 function TenantUsersTab({ tenantId }) {
   const [users, setUsers] = useState([]);
@@ -362,9 +365,5 @@ function TenantUsersTab({ tenantId }) {
         </DialogContent>
       </Dialog>
     </div>
-  );
-}
-
-    </Dialog>
   );
 }
