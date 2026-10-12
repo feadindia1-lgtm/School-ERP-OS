@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
   ArrowLeft, Buildings, Users, Coins, ChartLineUp, ShieldCheck, Warning, PlayCircle,
-  PauseCircle, Archive, UserSwitch,
+  PauseCircle, Archive, UserSwitch, Key, Copy,
 } from "@phosphor-icons/react";
 import { api, formatApiError } from "@/lib/api";
 import { toast } from "sonner";
@@ -138,6 +138,7 @@ export default function PlatformSchoolDetailPage() {
             <TabsTrigger value="plan" className={tabTrig} data-testid="detail-tab-plan">Plan</TabsTrigger>
             <TabsTrigger value="entitlements" className={tabTrig} data-testid="detail-tab-entitlements">Entitlements</TabsTrigger>
             <TabsTrigger value="usage" className={tabTrig} data-testid="detail-tab-usage">Usage</TabsTrigger>
+            <TabsTrigger value="users" className={tabTrig} data-testid="detail-tab-users">Users</TabsTrigger>
           </TabsList>
 
           <TabsContent value="overview" className="mt-6">
@@ -198,6 +199,10 @@ export default function PlatformSchoolDetailPage() {
               </div>
             </div>
           </TabsContent>
+
+          <TabsContent value="users" className="mt-6">
+            <TenantUsersTab tenantId={id} />
+          </TabsContent>
         </Tabs>
       </div>
     </div>
@@ -235,6 +240,131 @@ function ImpersonateButton({ reason, setReason, onConfirm }) {
           </Button>
         </DialogFooter>
       </DialogContent>
+
+function TenantUsersTab({ tenantId }) {
+  const [users, setUsers] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [resetFor, setResetFor] = useState(null);  // user object
+  const [newPassword, setNewPassword] = useState("");
+  const [reason, setReason] = useState("User reported being locked out");
+  const [resultPw, setResultPw] = useState(null);
+
+  const load = async () => {
+    try {
+      setLoading(true);
+      const { data } = await api.get(`/platform/tenants/${tenantId}/users`);
+      setUsers(data);
+    } catch (e) { toast.error(formatApiError(e)); }
+    finally { setLoading(false); }
+  };
+  useEffect(() => { load(); /* eslint-disable-next-line */ }, [tenantId]);
+
+  const doReset = async () => {
+    if (reason.trim().length < 4) { toast.error("Reason must be at least 4 characters"); return; }
+    try {
+      const { data } = await api.post(
+        `/platform/tenants/${tenantId}/users/${resetFor.id}/reset-password`,
+        { new_password: newPassword || null, reason },
+      );
+      setResultPw(data.temporary_password);
+      toast.success("Password reset");
+      load();
+    } catch (e) { toast.error(formatApiError(e)); }
+  };
+
+  const copy = async (txt) => {
+    try { await navigator.clipboard.writeText(txt); toast.success("Copied"); }
+    catch { toast.error("Copy failed — select manually"); }
+  };
+
+  return (
+    <div className="bg-white border border-[var(--tinted-grey-200)] p-8" data-testid="tenant-users-tab">
+      <div className="flex items-center justify-between mb-4">
+        <div>
+          <div className="overline">Tenant users</div>
+          <div className="text-xs text-[var(--tinted-grey-500)]">Platform admin can reset a user's password if they are locked out of their own account.</div>
+        </div>
+        <Button size="sm" variant="outline" onClick={load} data-testid="tenant-users-refresh">Refresh</Button>
+      </div>
+      {loading ? (
+        <div className="text-sm text-[var(--tinted-grey-500)]">Loading…</div>
+      ) : users.length === 0 ? (
+        <div className="text-sm text-[var(--tinted-grey-500)]">No users in this tenant.</div>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="min-w-full text-sm" data-testid="tenant-users-table">
+            <thead className="bg-[var(--tinted-grey-100)]">
+              <tr>
+                <th className="p-2 text-left">Email</th>
+                <th className="p-2 text-left">Name</th>
+                <th className="p-2 text-left">Role</th>
+                <th className="p-2 text-left">Status</th>
+                <th className="p-2 text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {users.map((u) => (
+                <tr key={u.id} className="border-t border-[var(--tinted-grey-200)]" data-testid={`tenant-user-row-${u.id}`}>
+                  <td className="p-2 font-mono text-xs">{u.email}</td>
+                  <td className="p-2">{u.full_name}</td>
+                  <td className="p-2 text-xs">{u.role}</td>
+                  <td className="p-2 text-xs">{u.status}</td>
+                  <td className="p-2 text-right">
+                    <Button size="sm" variant="outline" onClick={() => { setResetFor(u); setResultPw(null); setNewPassword(""); setReason("User reported being locked out"); }} data-testid={`tenant-user-reset-${u.id}`}>
+                      <Key size={12} className="mr-1" />Reset password
+                    </Button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      <Dialog open={!!resetFor} onOpenChange={(o) => { if (!o) { setResetFor(null); setResultPw(null); } }}>
+        <DialogContent className="rounded-none max-w-md" data-testid="reset-password-dialog">
+          <DialogHeader>
+            <DialogTitle className="font-heading tracking-tight flex items-center gap-2">
+              <Key size={18} /> Reset password
+            </DialogTitle>
+          </DialogHeader>
+          {resetFor && !resultPw && (
+            <div className="space-y-3">
+              <div className="text-xs text-[var(--tinted-grey-500)]">User: <b>{resetFor.email}</b></div>
+              <div>
+                <Label className="overline">New password (optional — leave blank to auto-generate)</Label>
+                <Input value={newPassword} onChange={(e) => setNewPassword(e.target.value)} placeholder="At least 8 chars" data-testid="reset-password-input" />
+              </div>
+              <div>
+                <Label className="overline">Reason (required, audited)</Label>
+                <Textarea value={reason} onChange={(e) => setReason(e.target.value)} rows={3} data-testid="reset-password-reason" />
+              </div>
+            </div>
+          )}
+          {resultPw && (
+            <div className="space-y-3" data-testid="reset-password-result">
+              <div className="text-xs text-[var(--tinted-grey-500)]">Share this temporary password with the user through a secure channel. Ask them to change it after login.</div>
+              <div className="border border-[var(--tinted-grey-200)] p-3 flex items-center justify-between gap-2 bg-[var(--tinted-grey-100)]">
+                <code className="font-mono text-sm" data-testid="reset-password-value">{resultPw}</code>
+                <Button size="sm" variant="outline" onClick={() => copy(resultPw)} data-testid="reset-password-copy">
+                  <Copy size={12} className="mr-1" />Copy
+                </Button>
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            {!resultPw ? (
+              <Button onClick={doReset} className="rounded-none bg-[var(--ink)] hover:bg-[var(--klein)] text-white" data-testid="reset-password-confirm">Reset</Button>
+            ) : (
+              <Button onClick={() => { setResetFor(null); setResultPw(null); }} className="rounded-none bg-[var(--ink)] hover:bg-[var(--klein)] text-white" data-testid="reset-password-close">Done</Button>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
     </Dialog>
   );
 }

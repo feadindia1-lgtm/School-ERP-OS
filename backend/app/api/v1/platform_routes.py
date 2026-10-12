@@ -17,6 +17,7 @@ from bson import ObjectId
 from bson.errors import InvalidId
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 import jwt
+from pydantic import BaseModel, Field
 
 from app.api.v1.auth_routes import _tenant_to_out, _user_to_out
 from app.api.v1.schemas import (
@@ -340,6 +341,84 @@ async def tenant_usage(tenant_id: str, _: dict = Depends(require_platform_admin(
         "users_by_role": users_by_role,
         "audit_events_30d": audit_30d,
         "logins_30d": logins_30d,
+    }
+
+
+# ============================================================
+# Tenant users (list + password reset) — for support operations
+# ============================================================
+@router.get("/tenants/{tenant_id}/users", response_model=list[UserOut])
+async def list_tenant_users(tenant_id: str, _: dict = Depends(require_platform_admin())):
+    db = get_db()
+    _tenant_or_404(await db.tenants.find_one({"_id": _oid(tenant_id)}))
+    docs = await db.users.find({"tenant_id": tenant_id}).sort("created_at", -1).to_list(500)
+    out: list[dict] = []
+    for d in docs:
+        d["id"] = str(d.pop("_id"))
+        d.pop("password_hash", None)
+        out.append(_user_to_out(d, tenant_id))
+    return out
+
+
+class ResetTenantUserPasswordRequest(BaseModel):
+    new_password: str | None = Field(default=None, min_length=8, max_length=128)
+    reason: str = Field(min_length=4, max_length=240)
+
+
+@router.post("/tenants/{tenant_id}/users/{user_id}/reset-password")
+async def reset_tenant_user_password(
+    tenant_id: str,
+    user_id: str,
+    payload: ResetTenantUserPasswordRequest,
+    request: Request,
+    actor: dict = Depends(require_platform_admin()),
+):
+    """Platform Superadmin password reset for a tenant user.
+
+    If ``new_password`` is omitted the server generates a strong temporary
+    password and returns it in the response so the operator can hand it
+    to the user through a secure channel.  The reset is audited with the
+    stated reason, the user's active login-attempt lockout is cleared,
+    and all refresh tokens for that user are revoked.
+    """
+    import secrets
+    db = get_db()
+    _tenant_or_404(await db.tenants.find_one({"_id": _oid(tenant_id)}))
+    target = await db.users.find_one({"_id": _oid(user_id), "tenant_id": tenant_id})
+    if not target:
+        raise HTTPException(status_code=404, detail="User not found in this tenant")
+    if is_platform_role(target.get("role", "")):
+        raise HTTPException(status_code=400, detail="Cannot reset a platform-role user from the tenant endpoint")
+
+    new_pw = payload.new_password or (secrets.token_urlsafe(10) + "A1!")
+    await db.users.update_one(
+        {"_id": target["_id"]},
+        {"$set": {"password_hash": hash_password(new_pw), "updated_at": datetime.now(timezone.utc).isoformat()}},
+    )
+    # Clear any brute-force lockout tied to this identifier (best effort).
+    await db.login_attempts.delete_many({"identifier": {"$regex": target["email"]}})
+    # Revoke all refresh tokens for the user so active sessions are forced to re-login.
+    await db.refresh_tokens.update_many(
+        {"user_id": str(target["_id"]), "revoked_at": None},
+        {"$set": {"revoked_at": datetime.now(timezone.utc).isoformat()}},
+    )
+
+    await log_event(
+        action="user.password_reset", resource="user", resource_id=user_id,
+        tenant_id=tenant_id, actor=actor, request=request,
+        new_value={"email": target["email"], "reason": payload.reason, "generated": payload.new_password is None},
+    )
+    await create_alert(
+        title="Tenant user password reset",
+        message=f"Platform admin reset password for {target['email']} ({target.get('role')})",
+        level="info", tenant_id=tenant_id, resource="user", resource_id=user_id,
+    )
+    return {
+        "ok": True,
+        "user_id": user_id,
+        "email": target["email"],
+        "temporary_password": new_pw,
+        "generated": payload.new_password is None,
     }
 
 
