@@ -164,6 +164,10 @@ class FollowupOut(BaseModel):
     completed_by: str | None = None
     completion_notes: str | None = None
     created_at: datetime
+    lead_name: str | None = None
+    inquiry_number: str | None = None
+    lead_stage: str | None = None
+    parent_mobile: str | None = None
 
 
 # ---------- Campus visit ----------
@@ -201,6 +205,8 @@ class VisitOut(BaseModel):
     status: str
     notes: str | None = None
     created_at: datetime
+    lead_name: str | None = None
+    inquiry_number: str | None = None
 
 
 # ---------- Application ----------
@@ -267,6 +273,14 @@ class ApplicationOut(BaseModel):
     correction_requested: str | None = None
     student_id: str | None = None
     converted_at: str | None = None
+    fee_status: str | None = None
+    fee_reference: str | None = None
+    fee_note: str | None = None
+    fee_updated_by: str | None = None
+    fee_updated_at: str | None = None
+    form_answers: dict = Field(default_factory=dict)
+    address: str | None = None
+    submitted_via: str = "staff"
     created_at: datetime
     updated_at: datetime
 
@@ -321,6 +335,7 @@ class AdmissionSettingsOut(BaseModel):
     priorities: list[str]
     doc_types: list[dict]
     require_docs_for_approval: bool
+    require_fee_before_conversion: bool = True
 
 
 class UpdateSettingsRequest(BaseModel):
@@ -329,6 +344,7 @@ class UpdateSettingsRequest(BaseModel):
     priorities: list[str] | None = None
     doc_types: list[dict] | None = None
     require_docs_for_approval: bool | None = None
+    require_fee_before_conversion: bool | None = None
 
 
 # ---------- Dashboard ----------

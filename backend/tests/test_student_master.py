@@ -318,6 +318,8 @@ def _admit(sess, tenant_slug, child_first, child_last, dob, parent_mobile, paren
     # Approve may 409 if some optional docs unverified — fall back to override on convert
     override = r.status_code != 200
 
+    sess.post(f"{API}/school/admissions/applications/{aid}/fee-status",
+              json={"status": "received", "reference": "RCPT-TEST"})
     r = sess.post(f"{API}/school/admissions/applications/{aid}/convert",
                   json={"override_docs": override})
     assert r.status_code == 200, r.text

@@ -1,0 +1,56 @@
+{
+  "summary": "Stabilization Workstreams A (Master Timetable draft/validate/publish) and B (Employee<->User<->TeacherAssignment linking) tested end-to-end on a fresh school (slug test-stab-4fcddf); umv-hajipur was not touched. Backend: full pytest suite 240/240 PASS, including a new edge-case file (12 tests: grid fallback when no bell is default, break period rejected, teacher+room double-book across sections, lock blocks create/patch/delete, publish then edit reverts to draft, suggestions by name/email, link backfills employee_id on slots and assignments, user_already_linked, weak password, school_owner role rejected, case-insensitive email_in_use). Frontend (desktop 1920 + mobile 390): the grid shows 4 bell rows with no default bell, and the break row shows a 'Break' banner across the row. Cell editor works: teacher_double_book appears in cell-conflicts, then saving with a different teacher works. Validation panel works: tt-warning-teacher_not_assigned / empty_cells, and tt-error-teacher_inactive blocks publish and shows in the panel with the bad cell outlined in red. Publish gives 'published v1'. Editing after publish gives draft + tt-unpublished-badge. Lock disables Publish and cell editing. Bell change to an incompatible bell gives a 409 toast. Staff page: Login column, account-links-banner, and the review dialog link suggestion all work. Staff detail: create-login rejects a duplicate email with a clear toast, then creates and links. Linked view shows the assignment count. Unlink and relink work. Teacher Assignments: ta-unlinked-banner shows and then disappears once everyone is linked; ta-teacher-select shows 'Name · EMP-code'. After a TA is created, the cell teacher picker lists 'Assigned to this subject' teachers first and auto-fills the teacher. Mobile: the grid scrolls sideways inside its container (scrollWidth 361 > clientWidth 340) and the page body does not overflow.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "GET /api/v1/school/timetable/grid?bell_schedule_id=<invalid>", "issue": "_resolve_bell calls _oid() on the requested id, so a malformed bell_schedule_id returns 404 'Not found' for the whole grid instead of being ignored and falling back to default/first bell."},
+      {"endpoint": "POST /api/v1/school/staff/employees/{id}/account/link", "issue": "A malformed user_id returns 404 (from _oid), while a valid-but-unknown id returns 400 'user_id not found'. Inconsistent. Linking also accepts any role (e.g. school_owner or parent users) without checking."},
+      {"endpoint": "POST /api/v1/school/timetable/slots", "issue": "The slot is validated against the payload's bell_schedule_id, not the section meta's bell. A caller can place a slot that fits another bell but lands on a break in the section's bell. Publish-time validation does catch it (period_is_break)."},
+      {"endpoint": "POST /api/v1/school/timetable/sections/publish", "issue": "Re-publishing with no changes still increments version (v1 -> v2) and writes an audit entry."},
+      {"endpoint": "Global error handler", "issue": "When HTTPException.detail is a dict, the envelope's error.message is the generic 'Request failed'; the real message sits only in error.details.message (handled on the frontend now, see updated_files)."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "All toasts (formatApiError)", "issue": "Structured 409s (bell_incompatible, validation_failed, timetable_locked, etc.) showed the toast 'Request failed' because formatApiError read error.message rather than error.details.message. FIXED in lib/api.js; bell_incompatible now shows \"Existing slots don't fit this bell schedule: mon P1\" and email_in_use shows its full message.", "selector": "[data-sonner-toast]", "priority": "MEDIUM (fixed)"},
+      {"component": "TimetableGridPage GridTable", "issue": "When a slot's teacher login is disabled, the cell shows only the subject and no teacher name, because the lookups come from /timetable/teachers, which returns active teachers only. The teacher_inactive error then points at a cell with no visible teacher.", "selector": "[data-testid=tt-cell-mon-1]", "priority": "LOW"},
+      {"component": "TimetableGridPage StatusBar", "issue": "On a section that has never been edited (meta=null), Validate, Publish and Lock are all disabled, but the badge says 'draft'. The user cannot run Validate to see empty_timetable until they open a cell.", "selector": "[data-testid=btn-validate-timetable]", "priority": "LOW"}
+    ],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Staff detail EmployeeAccountPanel LinkedView", "issues": ["The 'capitalize' class renders 'Teacher Assignment(S)' with a capital S. Use 'assignment(s)' outside the capitalize span."]},
+      {"screen": "Cell editor", "issues": ["Room SelectItems have no data-testid (subject and teacher options do)."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_stabilization_ab_edgecases.py",
+    "/app/backend/tests/test_stabilization_a_timetable.py",
+    "/app/backend/tests/test_stabilization_b_staff.py",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [
+    "(Low) Show disabled or inactive teacher names in grid cells, e.g. include inactive teachers in the lookup or return a teacher name with each slot in /timetable/grid.",
+    "(Low) Enable Validate on sections with no meta, or create the meta lazily on validate.",
+    "(Low) In _resolve_bell, ignore a malformed requested bell_schedule_id instead of returning 404.",
+    "(Low) Make the link endpoint's errors consistent (400 for malformed user_id). Consider restricting linkable roles.",
+    "(Low) Optionally skip the version bump when publishing with has_unpublished_changes=false.",
+    "(Cosmetic) Fix the 'Assignment(S)' capitalisation and add data-testid to room options."
+  ],
+  "critical_code_review_comments": [
+    "The global exception handler drops dict-detail messages into error.details.message and sets error.message='Request failed'. The frontend now handles this. A cleaner backend fix is to copy detail.message into error.message.",
+    "There is no unique index enforcing the 1:1 employees.user_id link. link_employee_user does check-then-update, so two concurrent links could both succeed. Consider a partial unique index on (tenant_id, user_id) where user_id != null.",
+    "timetable_routes.py is 1310 lines. Split proxy/substitution routes into their own module (guideline: >700 lines).",
+    "_validate_section runs one find_one per slot for teacher and room double-book checks (N+1). Fine for one section, but batch it if sections grow."
+  ],
+  "updated_files": [
+    "/app/frontend/src/lib/api.js (formatApiError now prefers error.details.message)",
+    "/app/backend/tests/test_stabilization_ab_edgecases.py (new)"
+  ],
+  "success_rate": {"backend": "100% (240/240 pytest)", "frontend": "100% of requested flows pass; 1 medium toast bug fixed; 2 low UI issues reported"},
+  "test_credentials": "Fresh test school owner: owner-4fcddf@stab.example.com / SchoolOwner@123 (slug test-stab-4fcddf). Teacher logins in that school: password Teacher@123. Seed ids are in /app/test_reports/stab_seed.json.",
+  "seed_data_creation": "School test-stab-4fcddf with year Y4fcddf, Class 5 (sections A and B), subject Science, room R4fcddf, bells 'Regular' (P1, P2, Break, P3; not default) and 'Alt' (break P1, P2), employees Meera, Ravi and Sunita all linked to logins, one TA (Sunita/Science/A), plus a few slots. Pytest also creates throwaway sta-/stb-/test-stab- schools.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Login wait: do NOT use wait_for_url('**/school**') because the host 'schoolos-foundation' matches. Use the regex r'.*\\.com/school.*'. Timetable picker option testids are '{picker}-opt-{id}'. TA dialog: ta-teacher-select options 'tat-{uid}', class 'tacls-{id}', section 'tas-{id}', and the Create button is found by role. Workstreams C and D (admissions) are not built and were not tested.",
+  "rca of the issue": "Toast 'Request failed' on structured 409s: the backend error envelope is {error:{code:'conflict', message:'Request failed', details:{code, message}}} whenever HTTPException.detail is a dict. formatApiError read error.message first, and that string is always the generic text, so the real reason was hidden. Reproduced by picking an incompatible bell on the grid. Fix: formatApiError checks error.details.message first. Verified the toast now shows the specific message."
+}

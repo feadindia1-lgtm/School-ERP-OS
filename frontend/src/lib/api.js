@@ -11,7 +11,9 @@ export const api = axios.create({
 });
 
 export function formatApiError(err) {
-  const detail = err?.response?.data?.error?.message ?? err?.response?.data?.detail;
+  const d = err?.response?.data;
+  const detail = (typeof d?.error?.details?.message === "string" ? d.error.details.message : null)
+    ?? d?.error?.message ?? d?.detail;
   if (typeof detail === "string") return detail;
   if (Array.isArray(detail)) {
     return detail

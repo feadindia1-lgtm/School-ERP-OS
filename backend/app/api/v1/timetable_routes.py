@@ -226,8 +226,8 @@ async def _mark_dirty(db, tid: str, yid: str, section_id: str) -> None:
 async def _resolve_bell(db, tid: str, yid: str, meta: dict | None, requested: str | None) -> dict | None:
     """Section meta bell > requested bell > year default > first bell of year."""
     for bid in (meta.get("bell_schedule_id") if meta else None, requested):
-        if bid:
-            b = await db.bell_schedules.find_one({"_id": _oid(bid), "tenant_id": tid, "academic_year_id": yid})
+        if bid and ObjectId.is_valid(bid):
+            b = await db.bell_schedules.find_one({"_id": ObjectId(bid), "tenant_id": tid, "academic_year_id": yid})
             if b: return b
     b = await db.bell_schedules.find_one({"tenant_id": tid, "academic_year_id": yid, "is_default": True})
     if b: return b
@@ -393,7 +393,9 @@ async def create_slot(payload: SlotIn, request: Request, user: dict = Depends(re
     db = get_db(); tid = user["tenant_id"]
     p = payload.model_dump()
     await _assert_year_editable(db, tid, p["academic_year_id"])
-    await _assert_section_editable(db, tid, p["section_id"])
+    meta = await _assert_section_editable(db, tid, p["section_id"])
+    if meta and meta.get("academic_year_id") == p["academic_year_id"]:
+        p["bell_schedule_id"] = meta["bell_schedule_id"]
     v = await _validate_slot_fks(db, tid, p)
     conflicts = await _detect_conflicts(db, tid, p)
     if conflicts:
@@ -621,15 +623,14 @@ async def get_grid(
 async def list_timetable_teachers(user: dict = Depends(require_permission(P_TIMETABLE_VIEW))):
     """Teacher picker: active teacher login accounts, joined to their Employee record."""
     db = get_db(); tid = user["tenant_id"]
-    users = await db.users.find({"tenant_id": tid, "role": {"$in": ["teacher", "class_teacher"]},
-                                 "status": "active"}).sort("full_name", 1).to_list(1000)
+    users = await db.users.find({"tenant_id": tid, "role": {"$in": ["teacher", "class_teacher"]}}).sort("full_name", 1).to_list(1000)
     emps = {e["user_id"]: e for e in await db.employees.find(
         {"tenant_id": tid, "user_id": {"$in": [str(u["_id"]) for u in users]}}).to_list(1000)}
     out = []
     for u in users:
         e = emps.get(str(u["_id"]))
         out.append({"id": str(u["_id"]), "full_name": u.get("full_name"), "email": u.get("email"),
-                    "role": u.get("role"), "employee_id": str(e["_id"]) if e else None,
+                    "role": u.get("role"), "status": u.get("status", "active"), "employee_id": str(e["_id"]) if e else None,
                     "employee_code": e.get("employee_code") if e else None,
                     "employee_status": e.get("status") if e else None})
     return out
@@ -664,6 +665,8 @@ async def publish_section(payload: PublishSection, request: Request, user: dict 
         raise HTTPException(status_code=404, detail="Section timetable not initialised — add slots first")
     if meta.get("locked"):
         raise HTTPException(status_code=409, detail={"code": "timetable_locked", "message": "Unlock the section before publishing"})
+    if meta.get("status") == "published" and not meta.get("has_unpublished_changes"):
+        return _out(meta)
     result = await _validate_section(db, tid, payload.academic_year_id, payload.section_id)
     now = _now()
     if not result["ok"]:

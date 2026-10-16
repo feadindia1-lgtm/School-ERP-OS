@@ -12,8 +12,9 @@ const val = (v) => (v && v !== "__none" ? v : null);
 
 function TeacherSelect({ value, onChange, teachers, assigned }) {
   const assignedSet = new Set(assigned);
-  const top = teachers.filter((t) => assignedSet.has(t.id));
-  const rest = teachers.filter((t) => !assignedSet.has(t.id));
+  const active = teachers.filter((t) => t.status === "active" || t.id === value);
+  const top = active.filter((t) => assignedSet.has(t.id));
+  const rest = active.filter((t) => !assignedSet.has(t.id));
   return (
     <Select value={value} onValueChange={onChange}>
       <SelectTrigger data-testid="cell-teacher"><SelectValue placeholder="—" /></SelectTrigger>
@@ -124,7 +125,7 @@ export function CellEditor({ state, sectionId, classId, yearId, bellId, subjects
               <SelectTrigger data-testid="cell-room"><SelectValue placeholder="—" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="__none" data-testid="cell-room-none">— None —</SelectItem>
-                {rooms.map((r) => <SelectItem key={r.id} value={r.id}>{r.code} — {r.name}</SelectItem>)}
+                {rooms.map((r) => <SelectItem key={r.id} value={r.id} data-testid={`cell-room-opt-${r.id}`}>{r.code} — {r.name}</SelectItem>)}
               </SelectContent>
             </Select>
           </div>

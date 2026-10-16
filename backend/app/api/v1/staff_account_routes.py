@@ -25,7 +25,7 @@ from app.services.audit_service import log_event
 
 router = APIRouter(prefix="/school/staff", tags=["staff-accounts"])
 
-ASSIGNABLE_ROLES = [r for r in ALL_ROLES if r not in {ROLE_PLATFORM_SUPERADMIN, ROLE_SCHOOL_OWNER}]
+ASSIGNABLE_ROLES = [r for r in ALL_ROLES if r not in {ROLE_PLATFORM_SUPERADMIN, ROLE_SCHOOL_OWNER, "parent", "student"}]
 
 
 def _oid(v: str) -> ObjectId:
@@ -77,7 +77,7 @@ def _score(emp: dict, u: dict) -> int:
 async def _unlinked_users(db, tid: str) -> list[dict]:
     linked = {e["user_id"] for e in await db.employees.find(
         {"tenant_id": tid, "user_id": {"$ne": None}}, {"user_id": 1}).to_list(5000)}
-    users = await db.users.find({"tenant_id": tid, "role": {"$ne": ROLE_SCHOOL_OWNER}}).to_list(5000)
+    users = await db.users.find({"tenant_id": tid, "role": {"$nin": [ROLE_SCHOOL_OWNER, "parent", "student"]}}).to_list(5000)
     return [u for u in users if str(u["_id"]) not in linked]
 
 
@@ -91,6 +91,9 @@ async def link_employee_user(db, tid: str, emp: dict, uid: str, actor: dict, req
     """Join an Employee to an existing User. Enforces 1:1 and back-fills references."""
     u = await db.users.find_one({"_id": _oid(uid), "tenant_id": tid})
     if not u: raise HTTPException(status_code=400, detail="user_id not found")
+    if u.get("role") in {"parent", "student"}:
+        raise HTTPException(status_code=400, detail={"code": "role_not_linkable",
+                            "message": f"A {u.get('role')} login cannot be linked to an employee"})
     eid = str(emp["_id"])
     if emp.get("user_id") == uid:
         return emp

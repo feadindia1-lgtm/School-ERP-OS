@@ -21,6 +21,8 @@ const NAV_ADMISSIONS = [
   { to: "/school/admissions/inquiries", icon: Kanban, label: "Inquiries", testid: "sch-nav-inquiries" },
   { to: "/school/admissions/applications", icon: ClipboardText, label: "Applications", testid: "sch-nav-applications" },
   { to: "/school/admissions/visits", icon: Calendar, label: "Campus Visits", testid: "sch-nav-visits" },
+  { to: "/school/admissions/followups", icon: ListChecks, label: "Follow-ups", testid: "sch-nav-followups" },
+  { to: "/school/admissions/form", icon: PencilSimple, label: "Online Form", testid: "sch-nav-online-form" },
   { to: "/school/admissions/config", icon: Gear, label: "Configuration", testid: "sch-nav-config" },
 ];
 

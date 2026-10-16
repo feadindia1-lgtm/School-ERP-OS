@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { FeePanel, ApplicantExtras } from "./crm/FeePanel";
 
 const NEXT_STATUS_MAP = {
   DRAFT: ["SUBMITTED","WITHDRAWN"],
@@ -103,7 +104,8 @@ export default function ApplicationDetailPage() {
           <div className="overline mb-2 font-mono">{app.application_number}</div>
           <h1 className="font-heading font-black text-4xl tracking-tighter" data-testid="app-student-name">{app.student_first_name} {app.student_last_name}</h1>
           <div className="mt-2 text-sm text-[var(--tinted-grey-500)]">
-            {app.class_requested} · {app.academic_year} · <span data-testid="app-status" className="uppercase tracking-widest">{app.status}</span>
+            {app.class_requested || "Class not set"} · {app.academic_year || "Year not set"} · <span data-testid="app-status" className="uppercase tracking-widest">{app.status}</span>
+            {app.lead_id && <> · <button className="underline" onClick={() => navigate(`/school/admissions/inquiries/${app.lead_id}`)} data-testid="app-open-inquiry">Inquiry</button></>}
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -119,7 +121,7 @@ export default function ApplicationDetailPage() {
             </>
           )}
           {app.status === "APPROVED" && (
-            <Button onClick={convert} data-testid="app-convert" className="rounded-full bg-[var(--klein)] hover:opacity-90 text-white"><GraduationCap size={14} className="mr-1" /> Convert to student</Button>
+            <Button onClick={convert} disabled={app.fee_status === "pending"} title={app.fee_status === "pending" ? "Mark the admission fee as received first" : ""} data-testid="app-convert" className="rounded-full bg-[var(--klein)] hover:opacity-90 text-white"><GraduationCap size={14} className="mr-1" /> Convert to student</Button>
           )}
           {app.status === "CONVERTED" && (
             <div className="text-xs uppercase tracking-widest text-[var(--klein)]" data-testid="app-converted-badge">
@@ -132,6 +134,8 @@ export default function ApplicationDetailPage() {
       <div className="mt-8 grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* Left: Details */}
         <div className="lg:col-span-4 space-y-4">
+          <FeePanel app={app} onChanged={load} />
+          <ApplicantExtras app={app} />
           <div className="bg-white border border-[var(--tinted-grey-200)] p-5">
             <div className="overline mb-3">Applicant</div>
             <div className="font-heading font-bold">{app.student_first_name} {app.student_last_name}</div>

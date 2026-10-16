@@ -52,6 +52,10 @@ async def convert_application_to_student(
         raise HTTPException(status_code=409, detail=f"Only APPROVED applications can be converted (current: {app.get('status')})")
 
     settings = await db.admission_settings.find_one({"tenant_id": tenant_id})
+    if (settings or {}).get("require_fee_before_conversion", True) and app.get("fee_status") != "received":
+        raise HTTPException(status_code=409, detail={
+            "code": "fee_pending",
+            "message": "Admission fee is still pending — mark the fee as received before converting to a student"})
     require_docs = (settings or {}).get("require_docs_for_approval", True)
     if require_docs and not override_docs:
         required = [t["code"] for t in (settings or {}).get("doc_types", []) if t.get("requirement") == "required" and t.get("active", True)]

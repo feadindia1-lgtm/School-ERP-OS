@@ -101,7 +101,7 @@ export default function TeacherAssignmentsPage() {
                   <Label className="overline">Teacher</Label>
                   <Select value={form.teacher_user_id} onValueChange={v => setForm({ ...form, teacher_user_id: v })}>
                     <SelectTrigger className="rounded-none h-10 mt-2" data-testid="ta-teacher-select"><SelectValue placeholder="Choose teacher" /></SelectTrigger>
-                    <SelectContent>{teachers.map(t => <SelectItem key={t.id} value={t.id} data-testid={`tat-${t.id}`}>{t.full_name || t.email}{t.employee_code ? ` · ${t.employee_code}` : ""}</SelectItem>)}</SelectContent>
+                    <SelectContent>{teachers.filter(t => t.status === "active").map(t => <SelectItem key={t.id} value={t.id} data-testid={`tat-${t.id}`}>{t.full_name || t.email}{t.employee_code ? ` · ${t.employee_code}` : ""}</SelectItem>)}</SelectContent>
                   </Select>
                   {teachers.length === 0 && <div className="text-xs text-amber-700 mt-2" data-testid="ta-no-teachers">No active teacher logins. Create or link logins from the Staff page.</div>}
                 </div>

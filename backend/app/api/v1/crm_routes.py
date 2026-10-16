@@ -28,6 +28,10 @@ from app.models.crm import (
 )
 from app.services.audit_service import log_event
 from app.services.numbering import next_number
+from app.services.admission_flow import (
+    APPLICATION_DRIVEN_STAGES, CONTACT_ACTIVITY_TYPES, set_lead_stage,
+)
+from app.models.crm import STAGE_CONTACTED, STAGE_VISIT_SCHEDULED
 
 router = APIRouter(prefix="/school/crm", tags=["crm"])
 
@@ -74,6 +78,7 @@ async def get_settings(user: dict = Depends(require_permission(P_CRM_VIEW))):
         pipeline_stages=s["pipeline_stages"], sources=s["sources"],
         priorities=s["priorities"], doc_types=s["doc_types"],
         require_docs_for_approval=s.get("require_docs_for_approval", True),
+        require_fee_before_conversion=s.get("require_fee_before_conversion", True),
     )
 
 
@@ -101,6 +106,7 @@ async def update_settings(
         pipeline_stages=new["pipeline_stages"], sources=new["sources"],
         priorities=new["priorities"], doc_types=new["doc_types"],
         require_docs_for_approval=new.get("require_docs_for_approval", True),
+        require_fee_before_conversion=new.get("require_fee_before_conversion", True),
     )
 
 
@@ -341,6 +347,14 @@ async def move_stage(
     old = await db.crm_leads.find_one({"_id": _oid(lead_id), "tenant_id": user["tenant_id"]})
     if not old:
         raise HTTPException(status_code=404, detail="Lead not found")
+    if payload.stage in APPLICATION_DRIVEN_STAGES:
+        raise HTTPException(status_code=409, detail={
+            "code": "stage_managed_by_application",
+            "message": "This stage follows the application. Create/advance the application, record the fee, or convert to a student instead."})
+    if old.get("stage") == STAGE_ADMITTED:
+        raise HTTPException(status_code=409, detail={"code": "lead_admitted", "message": "Admitted inquiries cannot change stage"})
+    if payload.stage == STAGE_LOST and not (payload.reason or "").strip():
+        raise HTTPException(status_code=400, detail="A reason is required to mark an inquiry as lost")
 
     updates = {
         "stage": payload.stage,
@@ -401,6 +415,9 @@ async def create_activity(
     if payload.next_followup_at:
         lead_updates["next_followup_at"] = payload.next_followup_at
     await db.crm_leads.update_one({"_id": _oid(lead_id)}, {"$set": lead_updates})
+    if payload.activity_type in CONTACT_ACTIVITY_TYPES:
+        await set_lead_stage(db, user["tenant_id"], lead_id, STAGE_CONTACTED, actor_id=user["id"],
+                             note=f"First contact via {payload.activity_type.replace('_', ' ')}")
 
     if payload.next_followup_at:
         await db.followups.insert_one(Followup(
@@ -484,10 +501,26 @@ async def list_followups(
         elif bucket == "upcoming":
             query["due_at"] = {"$gt": end}
     docs = await get_db().followups.find(query).sort("due_at", 1).to_list(500)
+    leads = await _lead_map(user["tenant_id"], [d["lead_id"] for d in docs])
     out = []
     for d in docs:
         d["id"] = str(d.pop("_id"))
-        out.append(FollowupOut(**d))
+        out.append(FollowupOut(**d, **_lead_bits(leads.get(d["lead_id"]), mobile=True)))
+    return out
+
+
+async def _lead_map(tid: str, ids: list[str]) -> dict:
+    oids = [ObjectId(i) for i in set(ids) if ObjectId.is_valid(i)]
+    docs = await get_db().crm_leads.find({"tenant_id": tid, "_id": {"$in": oids}}).to_list(1000)
+    return {str(d["_id"]): d for d in docs}
+
+
+def _lead_bits(lead: dict | None, mobile: bool = False) -> dict:
+    if not lead: return {}
+    out = {"lead_name": f"{lead.get('student_first_name', '')} {lead.get('student_last_name', '')}".strip(),
+           "inquiry_number": lead.get("inquiry_number")}
+    if mobile:
+        out.update(lead_stage=lead.get("stage"), parent_mobile=lead.get("parent_mobile"))
     return out
 
 
@@ -511,6 +544,18 @@ async def update_followup(
     await db.followups.update_one({"_id": old["_id"]}, {"$set": updates})
     new = await db.followups.find_one({"_id": old["_id"]})
     new["id"] = str(new.pop("_id"))
+    if updates.get("status") in {"completed", "cancelled"} and old.get("status") == "pending":
+        tid = user["tenant_id"]
+        if updates["status"] == "completed":
+            await db.crm_activities.insert_one(CrmActivity(
+                tenant_id=tid, lead_id=old["lead_id"], activity_type=old.get("channel") if old.get("channel") in ACTIVITY_TYPES else "other",
+                subject=f"Follow-up done: {old.get('title')}", notes=updates.get("completion_notes"),
+                activity_at=now, user_id=user["id"],
+            ).to_mongo())
+            await set_lead_stage(db, tid, old["lead_id"], STAGE_CONTACTED, actor_id=user["id"], note="Follow-up completed")
+        nxt = await db.followups.find_one({"tenant_id": tid, "lead_id": old["lead_id"], "status": "pending"}, sort=[("due_at", 1)])
+        await db.crm_leads.update_one({"_id": _oid(old["lead_id"]), "tenant_id": tid},
+                                      {"$set": {"next_followup_at": nxt["due_at"] if nxt else None, "last_activity_at": now}})
     await log_event(
         action="crm.followup.update", resource="followup", resource_id=followup_id,
         tenant_id=user["tenant_id"], actor=user, request=request,
@@ -557,12 +602,8 @@ async def create_visit(
     doc["id"] = str(res.inserted_id); doc.pop("_id", None)
 
     # Move lead into VISIT_SCHEDULED if it's still earlier in the funnel
-    settings = await _ensure_settings(user["tenant_id"])
-    order = {s["code"]: s["order"] for s in settings["pipeline_stages"]}
-    current_order = order.get(lead.get("stage"), 0)
-    visit_order = order.get("VISIT_SCHEDULED", 3)
-    if current_order < visit_order:
-        await db.crm_leads.update_one({"_id": _oid(payload.lead_id)}, {"$set": {"stage": "VISIT_SCHEDULED"}})
+    await set_lead_stage(db, user["tenant_id"], payload.lead_id, STAGE_VISIT_SCHEDULED, actor_id=user["id"],
+                         note=f"Campus visit booked for {payload.scheduled_date} {payload.start_time}")
 
     await log_event(
         action="crm.visit.create", resource="campus_visit", resource_id=doc["id"],
@@ -592,10 +633,11 @@ async def list_visits(
         if date_to:
             query["scheduled_date"]["$lte"] = date_to
     docs = await get_db().campus_visits.find(query).sort("scheduled_date", 1).to_list(500)
+    leads = await _lead_map(user["tenant_id"], [d["lead_id"] for d in docs])
     out = []
     for d in docs:
         d["id"] = str(d.pop("_id"))
-        out.append(VisitOut(**d))
+        out.append(VisitOut(**d, **_lead_bits(leads.get(d["lead_id"]))))
     return out
 
 
@@ -617,6 +659,15 @@ async def update_visit(
     await db.campus_visits.update_one({"_id": old["_id"]}, {"$set": updates})
     new = await db.campus_visits.find_one({"_id": old["_id"]})
     new["id"] = str(new.pop("_id"))
+    st = updates.get("status")
+    if st and st != old.get("status") and st in {"completed", "no_show", "cancelled"}:
+        await db.crm_activities.insert_one(CrmActivity(
+            tenant_id=user["tenant_id"], lead_id=old["lead_id"], activity_type="campus_visit",
+            subject=f"Campus visit {st.replace('_', ' ')}", notes=updates.get("notes"),
+            activity_at=updates["updated_at"], user_id=user["id"], is_system=True,
+        ).to_mongo())
+        await db.crm_leads.update_one({"_id": _oid(old["lead_id"]), "tenant_id": user["tenant_id"]},
+                                      {"$set": {"last_activity_at": updates["updated_at"]}})
     await log_event(
         action="crm.visit.update", resource="campus_visit", resource_id=visit_id,
         tenant_id=user["tenant_id"], actor=user, request=request,

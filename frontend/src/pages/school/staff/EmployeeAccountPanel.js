@@ -45,8 +45,8 @@ function LinkedView({ info, onUnlink }) {
     <div className="flex items-center justify-between flex-wrap gap-3" data-testid="account-linked">
       <div className="text-sm">
         <div className="font-mono text-xs" data-testid="account-email">{u.email}</div>
-        <div className="text-[var(--tinted-grey-500)] text-xs capitalize">
-          {ROLE_LABEL(u.role)} · {u.status} · {info.teacher_assignment_count} teacher assignment(s)
+        <div className="text-[var(--tinted-grey-500)] text-xs">
+          <span className="capitalize">{ROLE_LABEL(u.role)} · {u.status}</span> · {info.teacher_assignment_count} teacher assignment(s)
         </div>
       </div>
       <Button variant="outline" size="sm" className="rounded-none" onClick={onUnlink} data-testid="btn-unlink-account"><LinkBreak size={14} className="mr-1" />Unlink</Button>

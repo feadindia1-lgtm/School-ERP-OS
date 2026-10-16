@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { PipelineStrip, ScheduleVisitButton, ApplicantLinkButton, MANUAL_STAGES } from "./crm/LeadWorkflow";
 
 const tabTrig = "rounded-none border-b-2 border-transparent data-[state=active]:border-[var(--klein)] data-[state=active]:bg-transparent data-[state=active]:shadow-none px-6 py-3 font-heading font-semibold";
 const field = "mt-2 h-10 rounded-none border-x-0 border-t-0 border-b-2 border-[var(--ink)] focus-visible:ring-0 focus-visible:border-[var(--klein)] px-0";
@@ -39,7 +40,9 @@ export default function InquiryDetailPage() {
   useEffect(() => { load(); /* eslint-disable-next-line */ }, [id]);
 
   const moveStage = async (stage) => {
-    try { await api.post(`/school/crm/leads/${id}/stage`, { stage }); toast.success(`Stage → ${stage}`); load(); }
+    let reason;
+    if (stage === "LOST") { reason = window.prompt("Why is this inquiry lost?"); if (!reason) return; }
+    try { await api.post(`/school/crm/leads/${id}/stage`, { stage, reason }); toast.success(`Stage → ${stage}`); load(); }
     catch (e) { toast.error(formatApiError(e)); }
   };
   const addActivity = async () => {
@@ -73,6 +76,8 @@ export default function InquiryDetailPage() {
   if (!lead) return <div className="text-[var(--tinted-grey-500)]">Loading…</div>;
 
   const stages = settings?.pipeline_stages || [];
+  const manual = MANUAL_STAGES.includes(lead.stage);
+  const stageLabel = stages.find((s) => s.code === lead.stage)?.label || lead.stage;
 
   return (
     <div data-testid="inquiry-detail">
@@ -91,12 +96,18 @@ export default function InquiryDetailPage() {
           </div>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Select value={lead.stage} onValueChange={moveStage}>
-            <SelectTrigger className="rounded-none h-10 w-[220px]" data-testid="detail-stage-select"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              {stages.map(s => <SelectItem key={s.code} value={s.code} data-testid={`detail-stage-${s.code}`}>{s.label}</SelectItem>)}
-            </SelectContent>
-          </Select>
+          {manual ? (
+            <Select value={lead.stage} onValueChange={moveStage}>
+              <SelectTrigger className="rounded-none h-10 w-[220px]" data-testid="detail-stage-select"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {stages.filter(s => MANUAL_STAGES.includes(s.code)).map(s => <SelectItem key={s.code} value={s.code} data-testid={`detail-stage-${s.code}`}>{s.label}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          ) : (
+            <div className="h-10 px-3 flex items-center border border-[var(--tinted-grey-200)] text-xs uppercase tracking-widest" data-testid="detail-stage-readonly" title="This stage follows the application">{stageLabel}</div>
+          )}
+          {lead.stage !== "ADMITTED" && lead.stage !== "LOST" && <ScheduleVisitButton leadId={id} onDone={load} />}
+          {lead.stage !== "ADMITTED" && lead.stage !== "LOST" && <ApplicantLinkButton leadId={id} onDone={load} />}
           {lead.application_id ? (
             <Button data-testid="detail-open-app" onClick={() => navigate(`/school/admissions/applications/${lead.application_id}`)} className="rounded-full">Open application</Button>
           ) : (
@@ -104,6 +115,8 @@ export default function InquiryDetailPage() {
           )}
         </div>
       </div>
+
+      <PipelineStrip stage={lead.stage} stages={stages} />
 
       <div className="mt-8 grid grid-cols-1 lg:grid-cols-12 gap-6">
         <div className="lg:col-span-4 space-y-4">

@@ -47,7 +47,7 @@ function StatusBar({ grid, onValidate, onPublish, onLock, busy }) {
         <Button variant="outline" onClick={onLock} disabled={!meta} data-testid="btn-toggle-lock">
           {meta?.locked ? <><LockKeyOpen size={14} className="mr-1" />Unlock</> : <><LockKey size={14} className="mr-1" />Lock</>}
         </Button>
-        <Button variant="outline" onClick={onValidate} disabled={busy || !meta} data-testid="btn-validate-timetable">
+        <Button variant="outline" onClick={onValidate} disabled={busy} data-testid="btn-validate-timetable">
           <ShieldCheck size={14} className="mr-1" />Validate
         </Button>
         <Button onClick={onPublish} disabled={busy || !meta || meta.locked} data-testid="btn-publish-timetable">

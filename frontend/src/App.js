@@ -42,6 +42,10 @@ import { AttendanceRegisterPage, CorrectionsPage, AttendanceConfigPage } from "@
 import TimetableGridPage from "@/pages/school/timetable/TimetableGridPage";
 import ProxyDashboardPage from "@/pages/school/timetable/ProxyDashboardPage";
 import ProxyConfigPage from "@/pages/school/timetable/ProxyConfigPage";
+import FollowupsPage from "@/pages/school/FollowupsPage";
+import AdmissionFormConfigPage from "@/pages/school/AdmissionFormConfigPage";
+import PublicApplyPage from "@/pages/apply/PublicApplyPage";
+import ApplicantPortalPage from "@/pages/apply/ApplicantPortalPage";
 import PlatformShell from "@/components/PlatformShell";
 import PlatformDashboardPage from "@/pages/platform/PlatformDashboardPage";
 import PlatformSchoolsPage from "@/pages/platform/PlatformSchoolsPage";
@@ -60,6 +64,8 @@ export default function App() {
             <Route path="/" element={<LandingPage />} />
             <Route path="/login" element={<LoginPage />} />
             <Route path="/register" element={<RegisterSchoolPage />} />
+            <Route path="/apply/t/:token" element={<ApplicantPortalPage />} />
+            <Route path="/apply/:slug" element={<PublicApplyPage />} />
 
             <Route
               path="/platform"
@@ -87,6 +93,8 @@ export default function App() {
               <Route path="admissions/applications" element={<ApplicationsPage />} />
               <Route path="admissions/applications/:id" element={<ApplicationDetailPage />} />
               <Route path="admissions/visits" element={<CampusVisitsPage />} />
+              <Route path="admissions/followups" element={<FollowupsPage />} />
+              <Route path="admissions/form" element={<AdmissionFormConfigPage />} />
               <Route path="admissions/config" element={<CrmConfigPage />} />
               <Route path="students" element={<StudentsPage />} />
               <Route path="students/:id" element={<StudentDetailPage />} />

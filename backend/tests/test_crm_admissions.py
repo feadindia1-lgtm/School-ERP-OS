@@ -507,6 +507,10 @@ def test_C0_conversion_idempotent():
         target_app = state["appB"]["id"]
         override = True  # appB has no verified docs
 
+    # Stabilization C: fee must be marked received before conversion
+    fee = state["sA"].post(f"{API}/school/admissions/applications/{target_app}/fee-status",
+                           json={"status": "received", "reference": "RCPT-TEST-1"})
+    assert fee.status_code == 200, fee.text
     r1 = state["sA"].post(f"{API}/school/admissions/applications/{target_app}/convert",
                           json={"override_docs": override})
     assert r1.status_code == 200, r1.text

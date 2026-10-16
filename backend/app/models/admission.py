@@ -62,8 +62,50 @@ class AdmissionApplication(BaseDocument):
     student_id: str | None = None
     converted_at: str | None = None
 
+    # Fee-pending tracking only (no payments — Prompt 8 owns billing)
+    fee_status: str | None = None          # None | pending | received
+    fee_reference: str | None = None       # receipt / reference noted by staff
+    fee_note: str | None = None
+    fee_updated_by: str | None = None
+    fee_updated_at: str | None = None
 
-# --- Documents -------------------------------------------------------------
+    # Applicant-facing form
+    form_answers: dict = Field(default_factory=dict)
+    address: str | None = None
+    submitted_via: str = "staff"           # staff | applicant_link | public_form
+
+
+class ApplicantLink(BaseDocument):
+    """Secure, expiring link that lets an applicant fill one application and upload its documents."""
+    tenant_id: str
+    application_id: str
+    lead_id: str | None = None
+    token_hash: str                        # sha256 of the raw token; raw token is never stored
+    kind: str = "invite"                   # invite (staff-sent) | public (self-started)
+    expires_at: str
+    status: str = "active"                 # active | revoked
+    created_by: str | None = None
+    last_used_at: str | None = None
+
+
+DEFAULT_FORM_CONFIG = {
+    "enabled": True,
+    "intro_text": "Thank you for your interest. Please fill in the details below to apply for admission.",
+    "academic_years": [],
+    "classes": [],
+    "fields": {
+        "student_dob": {"enabled": True, "required": True},
+        "student_gender": {"enabled": True, "required": False},
+        "previous_school": {"enabled": True, "required": False},
+        "parent_email": {"enabled": True, "required": False},
+        "address": {"enabled": True, "required": False},
+    },
+    "custom_questions": [],              # [{key, label, type: text|textarea|select, options: [], required}]
+    "link_expiry_days": 14,
+}
+
+
+# --- Documents ---------------------------------------------------------------
 DOC_PENDING = "PENDING"
 DOC_VERIFIED = "VERIFIED"
 DOC_REJECTED = "REJECTED"
@@ -137,3 +179,5 @@ class AdmissionSettings(BaseDocument):
     priorities: list[str] = Field(default_factory=list)
     doc_types: list[dict] = Field(default_factory=list)           # {code, label, requirement, order}
     require_docs_for_approval: bool = True
+    require_fee_before_conversion: bool = True
+    form_config: dict = Field(default_factory=dict)

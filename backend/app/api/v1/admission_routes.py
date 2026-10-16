@@ -5,6 +5,7 @@ from bson import ObjectId
 from bson.errors import InvalidId
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, UploadFile
 from fastapi.responses import Response
+from pydantic import BaseModel, Field
 
 from app.api.v1.schemas_crm import (
     ApplicationOut, ApplicationStatusChange, ConversionResult, ConvertRequest,
@@ -24,6 +25,10 @@ from app.models.admission import (
     AdmissionApplication, AdmissionDocument,
 )
 from app.services.audit_service import log_event
+from app.services.admission_flow import (
+    FEE_PENDING, FEE_RECEIVED, fee_required, set_lead_stage, sync_lead_from_application,
+)
+from app.models.crm import STAGE_APPROVED, STAGE_FORM_FILLED
 from app.services.conversion import convert_application_to_student
 from app.services.numbering import next_number
 from app.services.storage import storage
@@ -67,6 +72,37 @@ async def _ensure_settings(tenant_id: str) -> dict:
 # ============================================================
 # Applications
 # ============================================================
+APP_FIELDS = {"academic_year", "class_requested", "student_first_name", "student_last_name", "student_dob",
+              "student_gender", "previous_school", "parent_name", "parent_relationship", "parent_mobile",
+              "parent_email", "address", "form_answers"}
+
+
+async def create_application_record(db, tid: str, data: dict, *, lead_id: str | None, actor_id: str | None,
+                                    app_number: str, status: str = APP_DRAFT, submitted_via: str = "staff") -> dict:
+    """Shared by staff + applicant flows: create application, seed doc checklist, link + advance the lead."""
+    fields = {k: v for k, v in data.items() if k in APP_FIELDS and v is not None}
+    if fields.get("parent_email"):
+        fields["parent_email"] = fields["parent_email"].lower()
+    now = datetime.now(timezone.utc).isoformat()
+    doc = AdmissionApplication(tenant_id=tid, application_number=app_number, lead_id=lead_id,
+                               status=status, submitted_via=submitted_via,
+                               submitted_at=now if status == APP_SUBMITTED else None, **fields).to_mongo()
+    res = await db.admission_applications.insert_one(doc)
+    doc["_id"] = res.inserted_id
+    settings = await _ensure_settings(tid)
+    for dt in settings.get("doc_types", []):
+        if dt.get("active", True):
+            await db.admission_documents.insert_one(AdmissionDocument(
+                tenant_id=tid, application_id=str(res.inserted_id),
+                type_code=dt["code"], type_label=dt["label"], status=DOC_PENDING,
+            ).to_mongo())
+    if lead_id:
+        await db.crm_leads.update_one({"_id": _oid(lead_id)}, {"$set": {"application_id": str(res.inserted_id), "updated_at": now}})
+        await set_lead_stage(db, tid, lead_id, STAGE_FORM_FILLED, actor_id=actor_id,
+                             note=f"Application {app_number} created")
+    return doc
+
+
 @router.post("/applications", response_model=ApplicationOut, status_code=201)
 async def create_application(
     payload: CreateApplicationRequest, request: Request,
@@ -82,41 +118,15 @@ async def create_application(
             raise HTTPException(status_code=409, detail="Lead already has an application", headers={"X-Existing-App": lead["application_id"]})
 
     app_number = await next_number(user["tenant_id"], "ADM")
-    doc = AdmissionApplication(
-        tenant_id=user["tenant_id"], application_number=app_number,
-        lead_id=payload.lead_id,
-        academic_year=payload.academic_year, class_requested=payload.class_requested,
-        student_first_name=payload.student_first_name, student_last_name=payload.student_last_name,
-        student_dob=payload.student_dob, student_gender=payload.student_gender,
-        previous_school=payload.previous_school,
-        parent_name=payload.parent_name, parent_relationship=payload.parent_relationship,
-        parent_mobile=payload.parent_mobile,
-        parent_email=payload.parent_email.lower() if payload.parent_email else None,
-    ).to_mongo()
-    res = await db.admission_applications.insert_one(doc)
-    doc["_id"] = res.inserted_id
-
-    if payload.lead_id:
-        await db.crm_leads.update_one({"_id": _oid(payload.lead_id)}, {"$set": {
-            "application_id": str(res.inserted_id),
-            "stage": "FORM_FILLED",
-            "updated_at": datetime.now(timezone.utc).isoformat(),
-        }})
-
-    # Seed document rows for required + optional configured types
-    settings = await _ensure_settings(user["tenant_id"])
-    for dt in settings.get("doc_types", []):
-        if not dt.get("active", True):
-            continue
-        await db.admission_documents.insert_one(AdmissionDocument(
-            tenant_id=user["tenant_id"], application_id=str(res.inserted_id),
-            type_code=dt["code"], type_label=dt["label"],
-            status=DOC_PENDING if dt.get("requirement") != "optional" else DOC_PENDING,
-        ).to_mongo())
+    doc = await create_application_record(
+        db, user["tenant_id"], payload.model_dump(exclude={"lead_id"}), lead_id=payload.lead_id,
+        actor_id=user["id"], app_number=app_number,
+    )
+    res_id = doc["_id"]
 
     await log_event(
         action="admission.application.create", resource="application",
-        resource_id=str(res.inserted_id), tenant_id=user["tenant_id"],
+        resource_id=str(res_id), tenant_id=user["tenant_id"],
         actor=user, request=request,
         new_value={"application_number": app_number, "class_requested": payload.class_requested,
                    "academic_year": payload.academic_year, "lead_id": payload.lead_id},
@@ -232,6 +242,9 @@ async def change_application_status(
                 )
 
     updates = {"status": payload.status, "updated_at": datetime.now(timezone.utc).isoformat()}
+    settings = await _ensure_settings(user["tenant_id"])
+    if payload.status == APP_APPROVED and fee_required(settings):
+        updates["fee_status"] = FEE_PENDING
     if payload.review_notes is not None:
         updates["review_notes"] = payload.review_notes
     if payload.status == APP_SUBMITTED and not old.get("submitted_at"):
@@ -245,15 +258,9 @@ async def change_application_status(
     await db.admission_applications.update_one({"_id": old["_id"]}, {"$set": updates})
     new = await db.admission_applications.find_one({"_id": old["_id"]})
 
-    # Propagate to CRM lead stage where meaningful
-    if new.get("lead_id"):
-        crm_stage = {APP_SUBMITTED: "FORM_FILLED", "UNDER_REVIEW": "UNDER_REVIEW",
-                     APP_APPROVED: "APPROVED", APP_REJECTED: "LOST"}
-        if payload.status in crm_stage:
-            await db.crm_leads.update_one(
-                {"_id": _oid(new["lead_id"]), "tenant_id": user["tenant_id"]},
-                {"$set": {"stage": crm_stage[payload.status]}},
-            )
+    # Propagate to CRM lead stage
+    await sync_lead_from_application(db, user["tenant_id"], new, payload.status, actor_id=user["id"],
+                                     fee_required=fee_required(settings), note=payload.reason)
 
     action_name = {APP_APPROVED: "admission.approve", APP_REJECTED: "admission.reject"}.get(payload.status, "admission.application.status")
     await log_event(
@@ -395,6 +402,45 @@ async def verify_document(
         metadata={"application_id": app_id, "rejection_reason": payload.rejection_reason},
     )
     return _doc_out(new)
+
+
+# ============================================================
+# Fee-pending tracking (status only — no payments, receipts or amounts)
+# ============================================================
+class FeeStatusIn(BaseModel):
+    status: str
+    reference: str | None = Field(default=None, max_length=120)
+    note: str | None = Field(default=None, max_length=500)
+
+
+@router.post("/applications/{app_id}/fee-status", response_model=ApplicationOut)
+async def set_fee_status(app_id: str, payload: FeeStatusIn, request: Request,
+                         user: dict = Depends(require_permission(P_ADMISSION_CONVERT))):
+    if payload.status not in {FEE_PENDING, FEE_RECEIVED}:
+        raise HTTPException(status_code=400, detail="status must be 'pending' or 'received'")
+    db = get_db()
+    old = await db.admission_applications.find_one({"_id": _oid(app_id), "tenant_id": user["tenant_id"]})
+    if not old:
+        raise HTTPException(status_code=404, detail="Application not found")
+    if old.get("status") != APP_APPROVED:
+        raise HTTPException(status_code=409, detail={"code": "not_approved", "message": "Fee status can only be recorded for APPROVED applications"})
+    if payload.status == FEE_RECEIVED and not (payload.reference or "").strip():
+        raise HTTPException(status_code=400, detail="A receipt/reference number is required to mark the fee as received")
+    now = datetime.now(timezone.utc).isoformat()
+    await db.admission_applications.update_one({"_id": old["_id"]}, {"$set": {
+        "fee_status": payload.status, "fee_reference": payload.reference, "fee_note": payload.note,
+        "fee_updated_by": user["id"], "fee_updated_at": now, "updated_at": now}})
+    if old.get("lead_id"):
+        from app.models.crm import CrmActivity
+        await db.crm_activities.insert_one(CrmActivity(
+            tenant_id=user["tenant_id"], lead_id=old["lead_id"], activity_type="application_update", is_system=True,
+            subject=f"Admission fee marked {payload.status}", notes=payload.reference, activity_at=now, user_id=user["id"],
+        ).to_mongo())
+    await log_event(action="admission.fee_status", resource="application", resource_id=app_id,
+                    tenant_id=user["tenant_id"], actor=user, request=request,
+                    old_value={"fee_status": old.get("fee_status")},
+                    new_value={"fee_status": payload.status, "reference": payload.reference})
+    return _app_out(await db.admission_applications.find_one({"_id": old["_id"]}))
 
 
 # ============================================================
