@@ -193,7 +193,8 @@ def test_40_form_config_and_public_apply():
     f = requests.get(f"{API}/public/admissions/schools/{SLUG}/form")
     assert f.status_code == 200
     form = f.json()
-    assert form["options"]["classes"] == ["Grade 1", "Grade 2"] and form["custom_questions"][0]["key"] == "q1"
+    assert form["options"]["classes"] == ["Grade 1", "Grade 2"] and form["custom_questions"][0]["key"].startswith("q_")
+    qk = form["custom_questions"][0]["key"]
     assert form["document_types"]
     base = {"academic_year": "2026-27", "class_requested": "Grade 2", "student_first_name": "Neel", "student_last_name": "Das",
             "student_dob": "2019-01-01", "parent_name": "Mira Das", "parent_mobile": "+91 98765 43210"}
@@ -201,13 +202,13 @@ def test_40_form_config_and_public_apply():
     assert bad.status_code == 422
     missing_q = requests.post(f"{API}/public/admissions/schools/{SLUG}/apply", json=base)
     assert missing_q.status_code == 422
-    bot = requests.post(f"{API}/public/admissions/schools/{SLUG}/apply", json={**base, "form_answers": {"q1": "Ad"}, "website": "spam"})
+    bot = requests.post(f"{API}/public/admissions/schools/{SLUG}/apply", json={**base, "form_answers": {qk: "Ad"}, "website": "spam"})
     assert bot.status_code == 400
-    ok = requests.post(f"{API}/public/admissions/schools/{SLUG}/apply", json={**base, "form_answers": {"q1": "Friend"}, "address": "ignored"})
+    ok = requests.post(f"{API}/public/admissions/schools/{SLUG}/apply", json={**base, "form_answers": {qk: "Friend"}, "address": "ignored"})
     assert ok.status_code == 201, ok.text
     body = ok.json()
     view = requests.get(f"{API}/public/admissions/t/{body['token']}").json()
-    assert view["status"] == "SUBMITTED" and view["can_upload"] and view["application"]["form_answers"] == {"q1": "Friend"}
+    assert view["status"] == "SUBMITTED" and view["can_upload"] and view["application"]["form_answers"] == {qk: "Friend"}
     assert view["application"]["address"] is None
     apps = s.get(f"{API}/school/admissions/applications", params={"q": "Neel"}).json()["items"]
     assert apps and apps[0]["submitted_via"] == "public_form"

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, CheckCircle, UploadSimple, Warning, XCircle, GraduationCap, FileText } from "@phosphor-icons/react";
+import { ArrowLeft, CheckCircle, UploadSimple, Warning, XCircle, GraduationCap, FileText, DownloadSimple } from "@phosphor-icons/react";
 import { api, formatApiError } from "@/lib/api";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -30,6 +30,7 @@ export default function ApplicationDetailPage() {
   const [uploadType, setUploadType] = useState(null);
   const [rejectDoc, setRejectDoc] = useState(null);
   const [rejectDocReason, setRejectDocReason] = useState("");
+  const [questions, setQuestions] = useState([]);
 
   const load = async () => {
     try {
@@ -38,6 +39,7 @@ export default function ApplicationDetailPage() {
         api.get(`/school/admissions/applications/${id}/documents`),
       ]);
       setApp(a.data); setDocs(d.data); setReviewNotes(a.data.review_notes || "");
+      api.get("/school/admissions/form-config").then(({ data }) => setQuestions(data.custom_questions || [])).catch(() => {});
     } catch (e) { toast.error(formatApiError(e)); }
   };
   useEffect(() => { load(); /* eslint-disable-next-line */ }, [id]);
@@ -73,6 +75,15 @@ export default function ApplicationDetailPage() {
       toast.success(status === "VERIFIED" ? "Document verified" : "Document rejected");
       setRejectDoc(null); setRejectDocReason("");
       load();
+    } catch (e) { toast.error(formatApiError(e)); }
+  };
+
+  const downloadDoc = async (d) => {
+    try {
+      const res = await api.get(`/school/admissions/applications/${id}/documents/${d.id}/download`, { responseType: "blob" });
+      const url = URL.createObjectURL(res.data);
+      const a = document.createElement("a"); a.href = url; a.download = d.filename || "document"; a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 5000);
     } catch (e) { toast.error(formatApiError(e)); }
   };
 
@@ -125,7 +136,7 @@ export default function ApplicationDetailPage() {
           )}
           {app.status === "CONVERTED" && (
             <div className="text-xs uppercase tracking-widest text-[var(--klein)]" data-testid="app-converted-badge">
-              <CheckCircle size={14} className="inline mr-1" /> Converted · student #{app.student_id?.slice(-6)}
+              <CheckCircle size={14} className="inline mr-1" /> Converted · student {app.student_number || `#${app.student_id?.slice(-6)}`}
             </div>
           )}
         </div>
@@ -135,7 +146,7 @@ export default function ApplicationDetailPage() {
         {/* Left: Details */}
         <div className="lg:col-span-4 space-y-4">
           <FeePanel app={app} onChanged={load} />
-          <ApplicantExtras app={app} />
+          <ApplicantExtras app={app} questions={questions} />
           <div className="bg-white border border-[var(--tinted-grey-200)] p-5">
             <div className="overline mb-3">Applicant</div>
             <div className="font-heading font-bold">{app.student_first_name} {app.student_last_name}</div>
@@ -190,10 +201,13 @@ export default function ApplicationDetailPage() {
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
                     <StatusBadge status={d.status} />
+                    {d.filename && <Button size="sm" variant="outline" className="h-8" onClick={() => downloadDoc(d)} data-testid={`doc-download-${d.type_code}`}><DownloadSimple size={12} className="mr-1" />View</Button>}
+                    {!["CONVERTED", "REJECTED", "WITHDRAWN"].includes(app.status) && d.status !== "VERIFIED" && (
                     <label className="cursor-pointer" data-testid={`doc-upload-${d.type_code}`}>
                       <input type="file" className="hidden" onChange={(e) => uploadDoc(d.type_code, e.target.files?.[0])} />
                       <span className="inline-flex items-center gap-1 text-xs px-2 py-1 border border-[var(--tinted-grey-300)] hover:border-[var(--ink)]"><UploadSimple size={12} /> Upload</span>
                     </label>
+                    )}
                     {d.filename && d.status === "PENDING" && (
                       <>
                         <Button size="sm" variant="outline" onClick={() => verifyDoc(d.id, "VERIFIED")} data-testid={`doc-verify-${d.type_code}`} className="h-8"><CheckCircle size={12} className="mr-1" />Verify</Button>

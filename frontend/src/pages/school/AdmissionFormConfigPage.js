@@ -12,6 +12,11 @@ const FIELD_LABELS = { student_dob: "Date of birth", student_gender: "Gender", p
 const csv = (a) => (a || []).join(", ");
 const uncsv = (s) => s.split(",").map((x) => x.trim()).filter(Boolean);
 
+function CsvInput({ value, onChange, testid, ...rest }) {
+  const [raw, setRaw] = useState(csv(value));
+  return <Input {...rest} value={raw} onChange={(e) => setRaw(e.target.value)} onBlur={() => onChange(uncsv(raw))} data-testid={testid} />;
+}
+
 function FieldToggles({ fields, onChange }) {
   return (
     <div className="divide-y divide-[var(--tinted-grey-200)]" data-testid="fc-fields">
@@ -41,9 +46,9 @@ function Questions({ items, onChange }) {
           <select className="sm:col-span-2 h-10 border border-[var(--tinted-grey-300)] text-sm px-2" value={q.type} onChange={(e) => upd(i, { type: e.target.value })} data-testid={`fc-q-type-${i}`}>
             <option value="text">Short text</option><option value="textarea">Long text</option><option value="select">Choice</option>
           </select>
-          <Input className="sm:col-span-3 rounded-none" placeholder="Options (comma)" disabled={q.type !== "select"} value={csv(q.options)} onChange={(e) => upd(i, { options: uncsv(e.target.value) })} data-testid={`fc-q-options-${i}`} />
+          <CsvInput className="sm:col-span-3 rounded-none" placeholder="Options (comma)" disabled={q.type !== "select"} value={q.options} onChange={(o) => upd(i, { options: o })} testid={`fc-q-options-${i}`} />
           <label className="sm:col-span-1 text-xs flex items-center gap-1"><input type="checkbox" checked={!!q.required} onChange={(e) => upd(i, { required: e.target.checked })} data-testid={`fc-q-required-${i}`} />Req.</label>
-          <button className="sm:col-span-1 text-[var(--tinted-grey-400)] hover:text-[var(--accent-red)]" onClick={() => onChange(items.filter((_, j) => j !== i))} data-testid={`fc-q-del-${i}`}><Trash size={14} /></button>
+          <button className="sm:col-span-1 text-[var(--tinted-grey-500)] hover:text-[var(--accent-red)]" onClick={() => onChange(items.filter((_, j) => j !== i))} data-testid={`fc-q-del-${i}`}><Trash size={14} /></button>
         </div>
       ))}
       <Button variant="outline" size="sm" className="rounded-none" onClick={() => onChange([...items, { label: "", type: "text", options: [], required: false }])} data-testid="fc-q-add"><Plus size={12} className="mr-1" />Add question</Button>
@@ -66,6 +71,8 @@ export default function AdmissionFormConfigPage() {
   if (!cfg) return <div className="text-[var(--tinted-grey-500)]">Loading…</div>;
   const url = `${window.location.origin}${cfg.public_path}`;
   const save = async () => {
+    if (document.activeElement) document.activeElement.blur();
+    await new Promise((r) => setTimeout(r, 0));
     try {
       const { data } = await api.put("/school/admissions/form-config", cfg);
       await api.patch("/school/crm/settings", { require_fee_before_conversion: feeRule });
@@ -94,9 +101,9 @@ export default function AdmissionFormConfigPage() {
           <Label className="overline">Intro text</Label>
           <Textarea rows={3} value={cfg.intro_text || ""} onChange={(e) => setCfg({ ...cfg, intro_text: e.target.value })} className="mt-2 rounded-none" data-testid="fc-intro" />
           <Label className="overline mt-4 block">Classes offered (comma separated, blank = all classes)</Label>
-          <Input value={csv(cfg.classes)} onChange={(e) => setCfg({ ...cfg, classes: uncsv(e.target.value) })} placeholder={csv(cfg.options.classes)} className="mt-2 rounded-none" data-testid="fc-classes" />
+          <CsvInput value={cfg.classes} onChange={(v) => setCfg({ ...cfg, classes: v })} placeholder={csv(cfg.options.classes)} className="mt-2 rounded-none" testid="fc-classes" />
           <Label className="overline mt-4 block">Academic years (blank = all open years)</Label>
-          <Input value={csv(cfg.academic_years)} onChange={(e) => setCfg({ ...cfg, academic_years: uncsv(e.target.value) })} placeholder={csv(cfg.options.academic_years)} className="mt-2 rounded-none" data-testid="fc-years" />
+          <CsvInput value={cfg.academic_years} onChange={(v) => setCfg({ ...cfg, academic_years: v })} placeholder={csv(cfg.options.academic_years)} className="mt-2 rounded-none" testid="fc-years" />
           <Label className="overline mt-4 block">Applicant link valid for (days)</Label>
           <Input type="number" min={1} max={90} value={cfg.link_expiry_days} onChange={(e) => setCfg({ ...cfg, link_expiry_days: Number(e.target.value) })} className="mt-2 rounded-none w-28" data-testid="fc-expiry" />
         </Panel>

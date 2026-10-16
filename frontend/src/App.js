@@ -59,7 +59,7 @@ export default function App() {
     <div className="App">
       <AuthProvider>
         <BrowserRouter>
-          <Toaster position="top-right" richColors closeButton />
+          <Toaster position="bottom-right" richColors closeButton />
           <Routes>
             <Route path="/" element={<LandingPage />} />
             <Route path="/login" element={<LoginPage />} />

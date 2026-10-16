@@ -53,7 +53,9 @@ async def set_lead_stage(db, tid: str, lead_id: str | None, stage: str, *, actor
         updates["lost_reason"] = note
     await db.crm_leads.update_one({"_id": lead["_id"]}, {"$set": updates})
     await db.crm_activities.insert_one(CrmActivity(
-        tenant_id=tid, lead_id=lead_id, activity_type="application_update", is_system=True,
+        tenant_id=tid, lead_id=lead_id,
+        activity_type="application_update" if stage in APPLICATION_DRIVEN_STAGES or lead.get("application_id") else "note",
+        is_system=True,
         subject=f"Stage → {stage}", notes=note, activity_at=now, user_id=actor_id,
     ).to_mongo())
     return True

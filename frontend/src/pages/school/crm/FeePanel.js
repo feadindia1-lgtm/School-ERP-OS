@@ -39,15 +39,16 @@ export function FeePanel({ app, onChanged }) {
   );
 }
 
-export function ApplicantExtras({ app }) {
+export function ApplicantExtras({ app, questions = [] }) {
   const answers = Object.entries(app.form_answers || {});
+  const qLabel = Object.fromEntries(questions.map((q) => [q.key, q.label]));
   if (!app.address && answers.length === 0 && app.submitted_via === "staff") return null;
   return (
     <div className="bg-white border border-[var(--tinted-grey-200)] p-5" data-testid="applicant-extras">
       <div className="overline mb-3">From the applicant</div>
       <div className="text-xs text-[var(--tinted-grey-500)] mb-2" data-testid="app-submitted-via">Source: {app.submitted_via.replace(/_/g, " ")}</div>
       {app.address && <div className="text-sm mb-2">{app.address}</div>}
-      {answers.map(([k, v]) => <div key={k} className="text-sm"><span className="font-mono text-xs text-[var(--tinted-grey-500)]">{k}</span> · {v}</div>)}
+      {answers.map(([k, v]) => <div key={k} className="text-sm"><span className="text-xs text-[var(--tinted-grey-500)]">{qLabel[k] || "Question"}</span> · {v}</div>)}
     </div>
   );
 }

@@ -13,7 +13,7 @@ const BUCKETS = [
 
 function FollowupRow({ f, onDone }) {
   const complete = async () => {
-    const notes = window.prompt("Outcome / notes (optional)") ?? null;
+    const notes = window.prompt("Outcome / notes (optional)");
     if (notes === null) return;
     try { await api.patch(`/school/crm/followups/${f.id}`, { status: "completed", completion_notes: notes || undefined }); toast.success("Follow-up completed"); onDone(); }
     catch (e) { toast.error(formatApiError(e)); }

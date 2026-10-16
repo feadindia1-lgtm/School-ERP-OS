@@ -39,7 +39,7 @@ function StatusCard({ view, justSubmitted }) {
     <div className={`p-5 border ${submitted ? "border-emerald-600 bg-emerald-50" : "border-amber-300 bg-amber-50"}`} data-testid="ap-status-card">
       <div className="flex items-center gap-2 font-heading font-bold">
         {submitted ? <CheckCircle size={18} className="text-emerald-700" /> : <Warning size={18} className="text-amber-700" />}
-        Application {view.application_number} · <span className="uppercase tracking-widest text-xs" data-testid="ap-status">{view.status.replace(/_/g, " ")}</span>
+        Application {view.application_number} <span className="uppercase tracking-widest text-xs ml-1" data-testid="ap-status">{view.status.replace(/_/g, " ")}</span>
       </div>
       <div className="text-xs mt-1 text-[var(--tinted-grey-500)]">
         {justSubmitted ? "Thank you! Your application was received. Bookmark this page to upload documents. " : ""}

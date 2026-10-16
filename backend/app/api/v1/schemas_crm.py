@@ -272,6 +272,7 @@ class ApplicationOut(BaseModel):
     rejection_reason: str | None = None
     correction_requested: str | None = None
     student_id: str | None = None
+    student_number: str | None = None
     converted_at: str | None = None
     fee_status: str | None = None
     fee_reference: str | None = None

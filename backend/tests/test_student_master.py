@@ -446,7 +446,8 @@ def test_C0_audit_events_present():
     if r.status_code != 200:
         pytest.skip("Cannot access audit logs without superadmin creds")
 
-    r = plat.get(f"{API}/platform/audit-logs", params={"page_size": 500})
+    tid = state["sA"].get(f"{API}/auth/me").json().get("tenant_id")
+    r = plat.get(f"{API}/platform/audit-logs", params={"page_size": 500, "tenant_id": tid})
     if r.status_code != 200:
         # Try tenant-scoped endpoint if available
         r = state["sA"].get(f"{API}/school/audit-logs", params={"page_size": 500})

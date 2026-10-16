@@ -94,12 +94,16 @@ async def put_form_config(payload: FormConfigIn, request: Request, user: dict = 
     db = get_db(); tid = user["tenant_id"]
     fields = {k: {"enabled": bool(v.get("enabled", True)), "required": bool(v.get("required", False)) and bool(v.get("enabled", True))}
               for k, v in payload.fields.items() if k in OPTIONAL_FIELDS and isinstance(v, dict)}
-    questions = []
-    for i, q in enumerate(payload.custom_questions):
+    questions, used = [], set()
+    for q in payload.custom_questions:
         label = str(q.get("label") or "").strip()[:200]
         if not label: continue
+        key = str(q.get("key") or "")
+        if not re.fullmatch(r"q_[a-z0-9]{6}", key) or key in used:
+            key = f"q_{secrets.token_hex(3)}"
+        used.add(key)
         qtype = q.get("type") if q.get("type") in {"text", "textarea", "select"} else "text"
-        questions.append({"key": q.get("key") or f"q{i + 1}", "label": label, "type": qtype,
+        questions.append({"key": key, "label": label, "type": qtype,
                           "options": [str(o)[:100] for o in (q.get("options") or [])][:20] if qtype == "select" else [],
                           "required": bool(q.get("required"))})
     cfg = {**payload.model_dump(), "fields": fields, "custom_questions": questions}
@@ -196,22 +200,33 @@ class ApplicantForm(BaseModel):
     website: str | None = None   # honeypot — must stay empty
 
 
+FIELD_LABELS = {"student_dob": "Date of birth", "student_gender": "Gender", "previous_school": "Previous school",
+                "parent_email": "Parent email", "address": "Home address"}
+
+
+def _client_ip(request: Request) -> str:
+    fwd = request.headers.get("x-forwarded-for")
+    if fwd:
+        return fwd.split(",")[0].strip()
+    return request.client.host if request.client else "unknown"
+
+
 def _validate_form(form: ApplicantForm, cfg: dict, options: dict) -> dict:
     data = form.model_dump(exclude={"website"})
     errors = []
     if not MOBILE_RX.match(data["parent_mobile"]):
-        errors.append("parent_mobile: enter a valid phone number")
+        errors.append("Parent mobile: enter a valid phone number")
     if data.get("parent_email") and not re.match(r"^[^@\s]+@[^@\s]+\.[^@\s]+$", data["parent_email"]):
-        errors.append("parent_email: enter a valid email")
+        errors.append("Parent email: enter a valid email")
     if options["classes"] and data["class_requested"] not in options["classes"]:
-        errors.append("class_requested: choose one of the offered classes")
+        errors.append("Class: choose one of the offered classes")
     if options["academic_years"] and data["academic_year"] not in options["academic_years"]:
-        errors.append("academic_year: choose one of the offered years")
+        errors.append("Academic year: choose one of the offered years")
     for key, rule in cfg["fields"].items():
         if not rule.get("enabled", True):
             data[key] = None
         elif rule.get("required") and not (data.get(key) or "").strip():
-            errors.append(f"{key}: required")
+            errors.append(f"{FIELD_LABELS.get(key, key)}: required")
     answers = {}
     for q in cfg.get("custom_questions", []):
         v = str(data["form_answers"].get(q["key"]) or "").strip()[:2000]
@@ -274,7 +289,7 @@ async def public_apply(slug: str, payload: ApplicantForm, request: Request):
         raise HTTPException(status_code=404, detail={"code": "form_disabled", "message": "Online admissions are not open for this school"})
     if payload.website:
         raise HTTPException(status_code=400, detail="Invalid submission")
-    ip = request.client.host if request.client else "unknown"
+    ip = _client_ip(request)
     since = (_now() - timedelta(hours=1)).isoformat()
     if await db.public_form_submissions.count_documents({"tenant_id": tid, "ip": ip, "at": {"$gte": since}}) >= PUBLIC_SUBMITS_PER_HOUR:
         raise HTTPException(status_code=429, detail="Too many applications from this network — please try again later")

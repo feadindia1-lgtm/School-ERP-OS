@@ -211,6 +211,9 @@ async def change_application_status(
         raise HTTPException(status_code=404, detail="Application not found")
 
     current = old.get("status", APP_DRAFT)
+    if payload.status == APP_CONVERTED:
+        raise HTTPException(status_code=409, detail={"code": "use_convert_endpoint",
+                            "message": "Use 'Convert to student' — conversion creates the Student record and checks the fee"})
     if payload.status not in APP_TRANSITIONS.get(current, set()):
         raise HTTPException(status_code=409, detail=f"Cannot transition from {current} to {payload.status}")
 

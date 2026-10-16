@@ -353,6 +353,9 @@ async def move_stage(
             "message": "This stage follows the application. Create/advance the application, record the fee, or convert to a student instead."})
     if old.get("stage") == STAGE_ADMITTED:
         raise HTTPException(status_code=409, detail={"code": "lead_admitted", "message": "Admitted inquiries cannot change stage"})
+    if old.get("stage") in APPLICATION_DRIVEN_STAGES and payload.stage != STAGE_LOST:
+        raise HTTPException(status_code=409, detail={"code": "stage_managed_by_application",
+                            "message": "This inquiry has an open application — its stage follows the application"})
     if payload.stage == STAGE_LOST and not (payload.reason or "").strip():
         raise HTTPException(status_code=400, detail="A reason is required to mark an inquiry as lost")
 
