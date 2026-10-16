@@ -298,6 +298,8 @@ async def upload_document(
     app_doc = await db.admission_applications.find_one({"_id": _oid(app_id), "tenant_id": user["tenant_id"]})
     if not app_doc:
         raise HTTPException(status_code=404, detail="Application not found")
+    if app_doc.get("status") in {APP_CONVERTED, APP_REJECTED, "WITHDRAWN"}:
+        raise HTTPException(status_code=409, detail={"code": "application_closed", "message": f"Application is {app_doc['status']} — documents are locked"})
 
     content = await file.read()
     if len(content) > MAX_UPLOAD_BYTES:
@@ -315,6 +317,8 @@ async def upload_document(
     })
 
     now = datetime.now(timezone.utc).isoformat()
+    if existing and existing.get("status") == DOC_VERIFIED:
+        raise HTTPException(status_code=409, detail={"code": "already_verified", "message": "This document is already verified"})
     if existing:
         doc_id = str(existing["_id"])
         # Delete old file if any

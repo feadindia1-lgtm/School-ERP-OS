@@ -1,0 +1,39 @@
+{
+  "summary": "Retest of the iteration_18 C+D fixes. Backend: the existing CD suites passed 24/24, and the new test_stabilization_cd_iter19.py passed 5/5. UI on test-smoke-cd: the CSV inputs keep raw text while typing ('Grade 1, Grade 2' typed with real keystrokes, persisted after reload, and shown in the /apply/test-smoke-cd dropdowns). The full flow worked end to end in the UI: public apply, portal upload, staff View/download (blob, correct file), staff upload + verify all, UNDER_REVIEW, APPROVED, Convert disabled while the fee is pending, fee received, convert, and the badge showed STU-2026-000002. Also confirmed: Upload is hidden after verify and after conversion; applicant extras show the question label; toasts sit bottom-right; cancelling the follow-up Done prompt aborts. All listed fixes work. Found 1 new UI bug, plus 2 backend hardening gaps and 1 data-consistency gap.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "POST /api/v1/school/admissions/applications/{id}/documents (staff upload)", "issue": "The guard is only in the UI. Through the API, staff can still replace a VERIFIED document on a CONVERTED application (201 Created), and the replacement resets the status to PENDING. Reproduced on test-smoke-cd ADM-2026-000004 birth_certificate. Add server-side checks: reject when the app status is CONVERTED, REJECTED or WITHDRAWN, and when the doc is VERIFIED (409)."},
+      {"endpoint": "POST /api/v1/public/admissions/schools/{slug}/apply (rate limit)", "issue": "_client_ip trusts the FIRST X-Forwarded-For entry, which the client controls. The ingress appends the real IP at the end, so an attacker can bypass the 10/hour limit by rotating the header (the test sent a different XFF and got 201 right after a 429). Use the right-most untrusted hop (e.g. the last XFF entry or X-Real-IP set by the ingress) or a trusted-proxy count."},
+      {"endpoint": "POST /api/v1/school/crm/leads/{id}/stage {stage: LOST, reason}", "issue": "When the lead has an open application, moving the lead to LOST works, but the application stays SUBMITTED and its applicant link stays usable. Either withdraw or close the application at the same time, or block this and point the user to Withdraw/Reject."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "AdmissionFormConfigPage QuestionsEditor + CsvInput", "issue": "Question rows use key={i}, and CsvInput keeps its raw text in local state set only once. Deleting question 0 makes row 0 show the label of the old question 1 ('Sibling name') with the options of the deleted question 0 ('Friend, Newspaper ad'). The real state is still 'A, B'. Blurring that input then overwrites the options with the wrong values. Fix: give each row a stable key (q.key, or a client id for new rows), and/or resync raw in CsvInput when value changes from outside (and the input is not focused).", "selector": "[data-testid='fc-q-del-0'], [data-testid='fc-q-options-0']", "priority": "MEDIUM"}
+    ],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Application detail documents list", "issues": ["Small files show '0 KB' (toFixed(0)); show bytes, or '<1 KB'"]}
+    ]
+  },
+  "test_report_links": ["/app/backend/tests/test_stabilization_cd_iter19.py", "/app/backend/tests/test_stabilization_cd_edgecases.py", "/app/backend/tests/test_stabilization_cd_admissions.py", "/app/test_reports/pytest/iter19_retest.xml", "/app/test_reports/pytest/iter19_cd.xml"],
+  "action_items": [
+    "MEDIUM: fix the stale CsvInput/index-key bug when deleting custom questions on /school/admissions/form",
+    "MEDIUM: enforce the staff document upload guard on the server (no replacing VERIFIED docs; no uploads on CONVERTED/REJECTED/WITHDRAWN apps)",
+    "MEDIUM: rate-limit key: don't trust a client-supplied first X-Forwarded-For entry",
+    "LOW: when an application-stage lead is manually marked LOST, also withdraw/close its application and applicant link (or block the move)",
+    "LOW: '0 KB' size display for small files"
+  ],
+  "critical_code_review_comments": [
+    "admission_routes.download_document builds Content-Disposition from the raw filename. Quotes or non-ASCII characters can break the header; use filename*=UTF-8'' encoding.",
+    "Staff upload_document never checks app status or doc status (UI-only guard)."
+  ],
+  "updated_files": ["/app/backend/tests/test_stabilization_cd_iter19.py"],
+  "success_rate": {"backend": "100% of the requested fixes (29/29 tests); 3 new hardening gaps", "frontend": "~95% (all requested fixes verified; 1 new medium bug)"},
+  "seed_data_creation": "test-smoke-cd: form config set to classes [Grade 1, Grade 2], years [2026-27, 2027-28], 2 select questions; application ADM-2026-000004 (Iter7641 Nineteen) converted to STU-2026-000002 (its birth_certificate was then replaced via the API, so it is PENDING again); lead 'Follow Up' with a completed follow-up. Fresh test-stab-* schools were created by the pytest runs.",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Run pytest with REACT_APP_BACKEND_URL exported and -n 0. The default form config requires DOB, and parent_name needs at least 2 characters. Rate-limit tests send a random X-Forwarded-For. To log in, wait with the regex r'.*/school(/.*)?$'. Follow-ups due today are under the 'Today' tab. To retest: delete question 0 on the form config page and check that row 0 shows the right options; staff upload on a CONVERTED app should return 409.",
+  "test_credentials": "owner@test-smoke-cd.example.com / SchoolOwner@123 (slug test-smoke-cd)"
+}

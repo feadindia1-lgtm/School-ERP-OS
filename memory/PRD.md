@@ -265,3 +265,40 @@ Points to existing `users` collection filtered by role in {teacher, class_teache
 - Fees, Payments, Payroll, Exams, Curriculum, Parent Portal, Mobile Apps, Communication providers (SMS/Email/WhatsApp).
 - Class/grade-specific multi-bell-schedule (data model supports it via `bell_schedule_id` on each `TimetableSlot` and `TimetableSectionMeta`, but only one school-wide bell is wired in UI).
 - Scheduled background auto-detect runner — `auto_run_enabled` + `auto_run_time` fields exist for later wiring (platform-crons prompt).
+
+
+## Implemented (2026-10-16) — Consolidated Integration Stabilization (Workstreams A–D)
+User-approved plan: A → B → C → D, test after each. Choices: public school link AND private per-inquiry link; conversion blocked until fee marked received (no override).
+
+### A — Master timetable
+- Root cause of the empty grid: the grid only looked for a bell schedule with `is_default=true`. UMV's only bell ("Weekday") is not default, so no periods were rendered. `_resolve_bell` now tries, in order: the section meta bell, the requested bell, the year default, then the first bell of the year.
+- Draft → Validate → Publish: `POST /timetable/sections/validate` returns errors and warnings. Errors: empty timetable, period not in bell, break period, non-working day, teacher/room double-book, teacher invalid or disabled/inactive, subject/room missing. Warnings: no Teacher Assignment for the slot, no teacher, empty cells, weekly-periods mismatch.
+- Publish runs validation and returns 409 `validation_failed` with the issues. Each publish increments `version`; republishing with no changes is a no-op. Any edit sets the section back to draft (`has_unpublished_changes`).
+- `POST /timetable/sections/bell` changes the section's bell (409 `bell_incompatible` if existing slots don't fit). `GET /timetable/teachers` is the canonical teacher picker (User joined to Employee).
+
+### B — Employee ↔ User ↔ TeacherAssignment
+- New `staff_account_routes.py`: `GET /employees/{id}/account` (linked user + name/email suggestions), `POST .../account/link`, `.../account/create`, `.../account/unlink`, and `GET /staff/account-links` (reconciliation view).
+- Links are 1:1 (409 `user_already_linked` / `employee_already_linked`). Creating a login with an existing email returns 409 `email_in_use`. Parent/student logins can't be linked. Linking backfills `employee_id` on teacher_assignments and timetable_slots.
+- UI: a Login column and reconciliation banner/dialog on the Staff page, a login account panel on Staff detail, Teacher Assignments uses the canonical list with an unlinked-staff banner.
+
+### C — Front Porch CRM end to end
+- `services/admission_flow.py`: lead stages move forward only, driven by events (contact activity → CONTACTED, visit → VISIT_SCHEDULED, application → FORM_FILLED/UNDER_REVIEW, approval → FEE_PENDING or APPROVED, reject/withdraw → LOST, conversion → ADMITTED). Application-driven stages can't be set by hand (409 `stage_managed_by_application`); LOST needs a reason.
+- Follow-ups: completing one logs an activity and recalculates next_followup_at. New Follow-up queue page (overdue/today/upcoming). Visits show prospect names; completed/no-show/cancelled visits are logged.
+- Fee-pending is status tracking only: `POST /applications/{id}/fee-status` (pending|received, a reference is required for received). Conversion returns 409 `fee_pending` until the fee is received; setting CONVERTED through `/status` is blocked. The `require_fee_before_conversion` setting defaults to on.
+
+### D — Applicant-facing form
+- `applicant_routes.py`. Staff side: `GET/PUT /school/admissions/form-config` (enabled, intro, classes/years, optional field toggles, custom questions with stable keys, link expiry) and `POST /school/admissions/applicant-links` (creates a DRAFT application from the lead if needed; revokes earlier links).
+- Public side: `GET /public/admissions/schools/{slug}/form`, `POST .../apply` (honeypot, rate limit of 10/hour per real client IP using the right-most XFF hop) and the token endpoints `GET/PUT /t/{token}`, `POST /t/{token}/submit`, `POST /t/{token}/documents`.
+- Tokens are stored as sha256 only and expire. The link closes once the application is approved, rejected or converted. Files go through `services/storage.py`; verified docs are locked.
+- Frontend: `/apply/:slug`, `/apply/t/:token`, `/school/admissions/form`, `/school/admissions/followups`. Staff can view/download documents from the application page.
+
+### Tests
+- Backend pytest 269/269 (new: test_stabilization_a_timetable, _b_staff, _ab_edgecases, _cd_admissions, _cd_edgecases, _cd_iter19). Testing agent iterations 17, 18, 19.
+- Test tenants created on 2026-10-16 were deleted afterwards; umv-hajipur was untouched.
+
+## Backlog
+- P1: Prompt 8 Fees & Billing (will replace manual fee-received marking with real receipts).
+- P1: Platform audit-log `action` filter plus showing the `reason` (from earlier).
+- P2: Background auto-run for proxy detection; email/SMS sending of applicant links (Prompt 15).
+- Note: each school's public form is enabled by default. Disable it in Admissions → Online Form if it isn't wanted yet.
+

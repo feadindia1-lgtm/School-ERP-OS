@@ -41,7 +41,7 @@ function Questions({ items, onChange }) {
   return (
     <div className="space-y-3" data-testid="fc-questions">
       {items.map((q, i) => (
-        <div key={i} className="grid sm:grid-cols-12 gap-2 items-center" data-testid={`fc-q-${i}`}>
+        <div key={q.key || q._cid} className="grid sm:grid-cols-12 gap-2 items-center" data-testid={`fc-q-${i}`}>
           <Input className="sm:col-span-5 rounded-none" placeholder="Question" value={q.label} onChange={(e) => upd(i, { label: e.target.value })} data-testid={`fc-q-label-${i}`} />
           <select className="sm:col-span-2 h-10 border border-[var(--tinted-grey-300)] text-sm px-2" value={q.type} onChange={(e) => upd(i, { type: e.target.value })} data-testid={`fc-q-type-${i}`}>
             <option value="text">Short text</option><option value="textarea">Long text</option><option value="select">Choice</option>
@@ -51,7 +51,7 @@ function Questions({ items, onChange }) {
           <button className="sm:col-span-1 text-[var(--tinted-grey-500)] hover:text-[var(--accent-red)]" onClick={() => onChange(items.filter((_, j) => j !== i))} data-testid={`fc-q-del-${i}`}><Trash size={14} /></button>
         </div>
       ))}
-      <Button variant="outline" size="sm" className="rounded-none" onClick={() => onChange([...items, { label: "", type: "text", options: [], required: false }])} data-testid="fc-q-add"><Plus size={12} className="mr-1" />Add question</Button>
+      <Button variant="outline" size="sm" className="rounded-none" onClick={() => onChange([...items, { _cid: `new-${Date.now()}`, label: "", type: "text", options: [], required: false }])} data-testid="fc-q-add"><Plus size={12} className="mr-1" />Add question</Button>
     </div>
   );
 }

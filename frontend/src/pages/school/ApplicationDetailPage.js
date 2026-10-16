@@ -195,7 +195,7 @@ export default function ApplicationDetailPage() {
                     <FileText size={18} weight="duotone" className="text-[var(--klein)] shrink-0" />
                     <div className="min-w-0">
                       <div className="font-heading font-semibold">{d.type_label}</div>
-                      <div className="text-xs text-[var(--tinted-grey-500)] truncate">{d.filename || "Not uploaded"} {d.size_bytes ? `· ${(d.size_bytes/1024).toFixed(0)} KB` : ""}</div>
+                      <div className="text-xs text-[var(--tinted-grey-500)] truncate">{d.filename || "Not uploaded"} {d.size_bytes ? `· ${d.size_bytes < 1024 ? "<1" : (d.size_bytes/1024).toFixed(0)} KB` : ""}</div>
                       {d.status === "REJECTED" && d.rejection_reason && <div className="text-xs text-[var(--accent-red)] mt-0.5">Rejected: {d.rejection_reason}</div>}
                     </div>
                   </div>

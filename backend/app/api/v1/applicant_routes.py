@@ -205,9 +205,10 @@ FIELD_LABELS = {"student_dob": "Date of birth", "student_gender": "Gender", "pre
 
 
 def _client_ip(request: Request) -> str:
+    """Right-most X-Forwarded-For hop is appended by our ingress and can't be forged by the client."""
     fwd = request.headers.get("x-forwarded-for")
     if fwd:
-        return fwd.split(",")[0].strip()
+        return fwd.split(",")[-1].strip()
     return request.client.host if request.client else "unknown"
 
 
