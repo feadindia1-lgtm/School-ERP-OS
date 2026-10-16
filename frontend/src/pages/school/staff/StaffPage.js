@@ -10,6 +10,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogT
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Plus, MagnifyingGlass, IdentificationBadge, Users, ChalkboardTeacher, AirplaneTilt, CaretLeft, CaretRight } from "@phosphor-icons/react";
 import { useStaffMeta, EMPLOYMENT_TYPES, EMPLOYMENT_STATUSES, STATUS_TONE } from "./_shared";
+import { AccountLinksBanner } from "./AccountLinksBanner";
 
 const field = "mt-2 h-10 rounded-none border-x-0 border-t-0 border-b-2 border-[var(--ink)] focus-visible:ring-0 focus-visible:border-[var(--klein)] px-0";
 const PAGE_SIZE = 25;
@@ -140,6 +141,7 @@ export default function StaffPage() {
       </div>
 
       {/* Filters */}
+      <AccountLinksBanner onChanged={load} />
       <div className="mt-6 flex flex-wrap items-center gap-3">
         <div className="relative min-w-[280px] flex-1 max-w-md">
           <MagnifyingGlass size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--tinted-grey-400)]" />
@@ -179,11 +181,12 @@ export default function StaffPage() {
               <TableHead>Dept</TableHead>
               <TableHead>Type</TableHead>
               <TableHead>Status</TableHead>
+              <TableHead>Login</TableHead>
               <TableHead className="text-right">Joined</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {rows.length === 0 && <TableRow><TableCell colSpan={7} className="text-center py-10 text-[var(--tinted-grey-500)]" data-testid="staff-empty">No employees match.</TableCell></TableRow>}
+            {rows.length === 0 && <TableRow><TableCell colSpan={8} className="text-center py-10 text-[var(--tinted-grey-500)]" data-testid="staff-empty">No employees match.</TableCell></TableRow>}
             {rows.map(e => {
               const dept = meta.departments.find(d => d.id === e.department_id);
               const desig = meta.designations.find(d => d.id === e.designation_id);
@@ -195,6 +198,7 @@ export default function StaffPage() {
                   <TableCell>{dept?.name || "—"}</TableCell>
                   <TableCell className="capitalize">{(e.employment_type || "").replace("_", " ")}</TableCell>
                   <TableCell><span className={`text-[10px] uppercase tracking-widest px-1.5 py-0.5 ${STATUS_TONE[e.status] || ""}`}>{(e.status || "").replace("_", " ")}</span></TableCell>
+                  <TableCell className="font-mono text-xs" data-testid={`emp-login-${e.employee_code}`}>{e.linked_user ? e.linked_user.email : <span className="text-amber-700">not linked</span>}</TableCell>
                   <TableCell className="text-right font-mono text-xs tabular-nums">{e.joining_date?.slice(0, 10) || "—"}</TableCell>
                 </TableRow>
               );

@@ -214,6 +214,110 @@ async def _assert_section_editable(db, tid: str, section_id: str) -> dict | None
     return meta
 
 
+async def _mark_dirty(db, tid: str, yid: str, section_id: str) -> None:
+    """Any edit returns a section to draft until it is re-validated and re-published."""
+    await db.timetable_section_meta.update_one(
+        {"tenant_id": tid, "academic_year_id": yid, "section_id": section_id},
+        {"$set": {"status": "draft", "has_unpublished_changes": True,
+                  "last_validation_ok": None, "updated_at": _now()}},
+    )
+
+
+async def _resolve_bell(db, tid: str, yid: str, meta: dict | None, requested: str | None) -> dict | None:
+    """Section meta bell > requested bell > year default > first bell of year."""
+    for bid in (meta.get("bell_schedule_id") if meta else None, requested):
+        if bid:
+            b = await db.bell_schedules.find_one({"_id": _oid(bid), "tenant_id": tid, "academic_year_id": yid})
+            if b: return b
+    b = await db.bell_schedules.find_one({"tenant_id": tid, "academic_year_id": yid, "is_default": True})
+    if b: return b
+    return await db.bell_schedules.find_one({"tenant_id": tid, "academic_year_id": yid}, sort=[("created_at", 1)])
+
+
+def _issue(level: str, code: str, message: str, **extra) -> dict:
+    return {"level": level, "code": code, "message": message, **extra}
+
+
+async def _validate_section(db, tid: str, yid: str, section_id: str) -> dict:
+    """Full-section validation used by the Validate and Publish actions."""
+    meta = await db.timetable_section_meta.find_one({"tenant_id": tid, "academic_year_id": yid, "section_id": section_id})
+    bell = await _resolve_bell(db, tid, yid, meta, None)
+    pol = await _get_working_policy(db, tid, yid)
+    slots = await db.timetable_slots.find({"tenant_id": tid, "academic_year_id": yid, "section_id": section_id}).to_list(1000)
+    issues: list[dict] = []
+    if not bell:
+        issues.append(_issue("error", "no_bell_schedule", "No bell schedule exists for this academic year"))
+        return {"ok": False, "errors": issues, "warnings": [], "slot_count": len(slots)}
+    periods = {int(p["period_no"]): p for p in bell.get("periods") or [] if isinstance(p.get("period_no"), int)}
+    working = pol.get("working_days", WEEKDAYS)
+    sec = await db.academic_sections.find_one({"_id": _oid(section_id), "tenant_id": tid})
+    assigns = await db.teacher_assignments.find({"tenant_id": tid, "academic_year_id": yid}).to_list(5000)
+    teacher_ids = {s["teacher_user_id"] for s in slots if s.get("teacher_user_id")}
+    users = {str(u["_id"]): u for u in await db.users.find(
+        {"tenant_id": tid, "_id": {"$in": [_oid(t) for t in teacher_ids]}}).to_list(500)}
+    emps = {e["user_id"]: e for e in await db.employees.find(
+        {"tenant_id": tid, "user_id": {"$in": list(teacher_ids)}}).to_list(500)}
+    subject_ids = {str(s["_id"]) for s in await db.subjects.find({"tenant_id": tid}, {"_id": 1}).to_list(2000)}
+    room_ids = {str(r["_id"]) for r in await db.rooms.find({"tenant_id": tid}, {"_id": 1}).to_list(2000)}
+    for s in slots:
+        cell = {"slot_id": str(s["_id"]), "weekday": s["weekday"], "period_no": s["period_no"]}
+        where = f"{s['weekday'].capitalize()} P{s['period_no']}"
+        bp = periods.get(s["period_no"])
+        if not bp:
+            issues.append(_issue("error", "period_not_in_bell", f"{where}: period is not in bell schedule '{bell['name']}'", **cell))
+        elif bp.get("is_break"):
+            issues.append(_issue("error", "period_is_break", f"{where}: class assigned during a break", **cell))
+        if s["weekday"] not in working:
+            issues.append(_issue("error", "non_working_day", f"{where}: {s['weekday']} is not a working day", **cell))
+        if s.get("subject_id") and s["subject_id"] not in subject_ids:
+            issues.append(_issue("error", "subject_missing", f"{where}: subject no longer exists", **cell))
+        if s.get("room_id") and s["room_id"] not in room_ids:
+            issues.append(_issue("error", "room_missing", f"{where}: room no longer exists", **cell))
+        base = {"tenant_id": tid, "academic_year_id": yid, "weekday": s["weekday"],
+                "period_no": s["period_no"], "section_id": {"$ne": section_id}}
+        tu = s.get("teacher_user_id")
+        if tu:
+            u = users.get(tu)
+            if not u or u.get("role") not in {"teacher", "class_teacher"}:
+                issues.append(_issue("error", "teacher_invalid", f"{where}: teacher account is missing or no longer a teacher", **cell))
+            elif u.get("status") != "active":
+                issues.append(_issue("error", "teacher_inactive", f"{where}: teacher account {u.get('full_name')} is disabled", **cell))
+            emp = emps.get(tu)
+            if emp and emp.get("status") in {"resigned", "terminated", "retired", "suspended"}:
+                issues.append(_issue("error", "teacher_inactive", f"{where}: employee status is {emp['status']}", **cell))
+            if await db.timetable_slots.find_one({**base, "teacher_user_id": tu}):
+                issues.append(_issue("error", "teacher_double_book", f"{where}: teacher is also scheduled in another section", **cell))
+            if s.get("subject_id"):
+                ok = any(a["teacher_user_id"] == tu and a.get("subject_id") == s["subject_id"]
+                         and a.get("class_id") == s["class_id"]
+                         and a.get("section_id") in (None, section_id) for a in assigns)
+                if not ok:
+                    issues.append(_issue("warning", "teacher_not_assigned", f"{where}: teacher has no Teacher Assignment for this subject in this section", **cell))
+        elif s.get("subject_id"):
+            issues.append(_issue("warning", "no_teacher", f"{where}: subject has no teacher", **cell))
+        if s.get("room_id") and await db.timetable_slots.find_one({**base, "room_id": s["room_id"]}):
+            issues.append(_issue("error", "room_double_book", f"{where}: room is also booked by another section", **cell))
+    teaching = [p for p in periods.values() if not p.get("is_break")]
+    filled = {(s["weekday"], s["period_no"]) for s in slots}
+    empty = sum(1 for wd in working for p in teaching if (wd, int(p["period_no"])) not in filled)
+    if empty:
+        issues.append(_issue("warning", "empty_cells", f"{empty} teaching period(s) have nothing scheduled"))
+    # Weekly-load check against TeacherAssignment.weekly_periods
+    for a in assigns:
+        if a.get("weekly_periods") and a.get("subject_id") and a.get("section_id") == section_id:
+            n = sum(1 for s in slots if s.get("teacher_user_id") == a["teacher_user_id"] and s.get("subject_id") == a["subject_id"])
+            if n != a["weekly_periods"]:
+                issues.append(_issue("warning", "weekly_periods_mismatch",
+                                     f"Assignment expects {a['weekly_periods']} period(s)/week, timetable has {n}",
+                                     teacher_user_id=a["teacher_user_id"], subject_id=a["subject_id"]))
+    if not slots:
+        issues.append(_issue("error", "empty_timetable", "No slots to publish"))
+    errors = [i for i in issues if i["level"] == "error"]
+    warnings = [i for i in issues if i["level"] == "warning"]
+    return {"ok": not errors, "errors": errors, "warnings": warnings, "slot_count": len(slots),
+            "bell_schedule_id": str(bell["_id"]), "section_name": sec.get("name") if sec else None}
+
+
 # ============================================================
 # Pydantic payloads
 # ============================================================
@@ -299,6 +403,7 @@ async def create_slot(payload: SlotIn, request: Request, user: dict = Depends(re
     ).to_mongo()
     res = await db.timetable_slots.insert_one(doc); doc["_id"] = res.inserted_id
     await _get_or_create_section_meta(db, tid, p)
+    await _mark_dirty(db, tid, p["academic_year_id"], p["section_id"])
     await log_event(action="timetable.slot.create", resource="timetable_slot",
                     resource_id=str(res.inserted_id), tenant_id=tid,
                     actor=user, request=request, new_value={
@@ -386,6 +491,7 @@ async def bulk_upsert_slots(payload: BulkSlots, request: Request, user: dict = D
         "academic_year_id": payload.academic_year_id, "class_id": payload.class_id,
         "section_id": payload.section_id, "bell_schedule_id": payload.bell_schedule_id,
     })
+    await _mark_dirty(db, tid, payload.academic_year_id, payload.section_id)
     await log_event(action="timetable.slot.bulk_upsert", resource="timetable_slot",
                     resource_id=payload.section_id, tenant_id=tid,
                     actor=user, request=request, new_value={"count": len(prepared), "replace": payload.replace})
@@ -443,6 +549,7 @@ async def update_slot(sid: str, payload: SlotUpdate, request: Request, user: dic
     patch["teacher_employee_id"] = teacher_employee_id
     patch["updated_at"] = _now()
     await db.timetable_slots.update_one({"_id": old["_id"]}, {"$set": patch})
+    await _mark_dirty(db, tid, old["academic_year_id"], old["section_id"])
     await log_event(action="timetable.slot.update", resource="timetable_slot",
                     resource_id=sid, tenant_id=tid, actor=user, request=request,
                     new_value={k: v for k, v in patch.items() if k != "updated_at"})
@@ -457,6 +564,7 @@ async def delete_slot(sid: str, request: Request, user: dict = Depends(require_p
     await _assert_year_editable(db, tid, old["academic_year_id"])
     await _assert_section_editable(db, tid, old["section_id"])
     await db.timetable_slots.delete_one({"_id": old["_id"]})
+    await _mark_dirty(db, tid, old["academic_year_id"], old["section_id"])
     await log_event(action="timetable.slot.delete", resource="timetable_slot",
                     resource_id=sid, tenant_id=tid, actor=user, request=request)
     return {"ok": True}
@@ -477,6 +585,7 @@ async def validate_slot(payload: SlotIn, user: dict = Depends(require_permission
 @router.get("/timetable/grid")
 async def get_grid(
     academic_year_id: str, section_id: str,
+    bell_schedule_id: str | None = None,
     user: dict = Depends(require_permission(P_TIMETABLE_VIEW)),
 ):
     db = get_db(); tid = user["tenant_id"]
@@ -485,16 +594,14 @@ async def get_grid(
     meta = await db.timetable_section_meta.find_one({
         "tenant_id": tid, "academic_year_id": academic_year_id, "section_id": section_id,
     })
-    bell_id = meta.get("bell_schedule_id") if meta else None
-    if not bell_id:
-        default = await db.bell_schedules.find_one({
-            "tenant_id": tid, "academic_year_id": academic_year_id, "is_default": True,
-        })
-        bell_id = str(default["_id"]) if default else None
-    bell = None
-    if bell_id:
-        bell_doc = await db.bell_schedules.find_one({"_id": _oid(bell_id), "tenant_id": tid})
-        if bell_doc: bell = _out(bell_doc)
+    bell_doc = await _resolve_bell(db, tid, academic_year_id, meta, bell_schedule_id)
+    bell = _out(bell_doc) if bell_doc else None
+    if bell:
+        bell["periods"] = sorted(bell.get("periods") or [], key=lambda p: p.get("period_no") or 0)
+    assigns = await db.teacher_assignments.find({
+        "tenant_id": tid, "academic_year_id": academic_year_id, "class_id": sec.get("class_id"),
+        "section_id": {"$in": [None, section_id]},
+    }).to_list(500)
     pol = await _get_working_policy(db, tid, academic_year_id)
     slots = await db.timetable_slots.find({
         "tenant_id": tid, "academic_year_id": academic_year_id, "section_id": section_id,
@@ -506,7 +613,26 @@ async def get_grid(
         "working_days": pol.get("working_days", []),
         "weekly_off": pol.get("weekly_off", []),
         "slots": [_out(s) for s in slots],
+        "teacher_assignments": [_out(a) for a in assigns],
     }
+
+
+@router.get("/timetable/teachers")
+async def list_timetable_teachers(user: dict = Depends(require_permission(P_TIMETABLE_VIEW))):
+    """Teacher picker: active teacher login accounts, joined to their Employee record."""
+    db = get_db(); tid = user["tenant_id"]
+    users = await db.users.find({"tenant_id": tid, "role": {"$in": ["teacher", "class_teacher"]},
+                                 "status": "active"}).sort("full_name", 1).to_list(1000)
+    emps = {e["user_id"]: e for e in await db.employees.find(
+        {"tenant_id": tid, "user_id": {"$in": [str(u["_id"]) for u in users]}}).to_list(1000)}
+    out = []
+    for u in users:
+        e = emps.get(str(u["_id"]))
+        out.append({"id": str(u["_id"]), "full_name": u.get("full_name"), "email": u.get("email"),
+                    "role": u.get("role"), "employee_id": str(e["_id"]) if e else None,
+                    "employee_code": e.get("employee_code") if e else None,
+                    "employee_status": e.get("status") if e else None})
+    return out
 
 
 @router.get("/timetable/teacher/{tu}/weekly")
@@ -536,19 +662,76 @@ async def publish_section(payload: PublishSection, request: Request, user: dict 
     })
     if not meta:
         raise HTTPException(status_code=404, detail="Section timetable not initialised — add slots first")
-    count = await db.timetable_slots.count_documents({
-        "tenant_id": tid, "academic_year_id": payload.academic_year_id, "section_id": payload.section_id,
-    })
-    if count == 0:
-        raise HTTPException(status_code=409, detail={"code": "empty_timetable", "message": "No slots to publish"})
+    if meta.get("locked"):
+        raise HTTPException(status_code=409, detail={"code": "timetable_locked", "message": "Unlock the section before publishing"})
+    result = await _validate_section(db, tid, payload.academic_year_id, payload.section_id)
     now = _now()
+    if not result["ok"]:
+        await db.timetable_section_meta.update_one({"_id": meta["_id"]}, {"$set": {
+            "last_validated_at": now, "last_validation_ok": False}})
+        first = result["errors"][0]
+        code = first["code"] if first["code"] == "empty_timetable" else "validation_failed"
+        raise HTTPException(status_code=409, detail={
+            "code": code, "message": f"{len(result['errors'])} error(s) must be fixed before publishing",
+            "errors": result["errors"], "warnings": result["warnings"]})
     await db.timetable_section_meta.update_one({"_id": meta["_id"]}, {"$set": {
         "status": "published", "published_at": now, "published_by_user_id": user.get("id"),
-        "updated_at": now,
+        "has_unpublished_changes": False, "last_validated_at": now, "last_validation_ok": True,
+        "version": int(meta.get("version") or 0) + 1, "updated_at": now,
     }})
     await log_event(action="timetable.section.publish", resource="timetable_section_meta",
                     resource_id=str(meta["_id"]), tenant_id=tid, actor=user, request=request,
-                    new_value={"section_id": payload.section_id})
+                    new_value={"section_id": payload.section_id, "version": int(meta.get("version") or 0) + 1,
+                               "warnings": len(result["warnings"])})
+    return _out(await db.timetable_section_meta.find_one({"_id": meta["_id"]}))
+
+
+@router.post("/timetable/sections/validate")
+async def validate_section(payload: PublishSection, user: dict = Depends(require_permission(P_TIMETABLE_VIEW))):
+    db = get_db(); tid = user["tenant_id"]
+    await _get_year(db, tid, payload.academic_year_id)
+    result = await _validate_section(db, tid, payload.academic_year_id, payload.section_id)
+    await db.timetable_section_meta.update_one(
+        {"tenant_id": tid, "academic_year_id": payload.academic_year_id, "section_id": payload.section_id},
+        {"$set": {"last_validated_at": _now(), "last_validation_ok": result["ok"]}})
+    return result
+
+
+class SectionBell(BaseModel):
+    academic_year_id: str
+    class_id: str
+    section_id: str
+    bell_schedule_id: str
+
+
+@router.post("/timetable/sections/bell")
+async def set_section_bell(payload: SectionBell, request: Request, user: dict = Depends(require_permission(P_TIMETABLE_MANAGE))):
+    """Pick which bell schedule drives a section. Existing slots must fit the new bell."""
+    db = get_db(); tid = user["tenant_id"]
+    await _assert_year_editable(db, tid, payload.academic_year_id)
+    await _assert_section_editable(db, tid, payload.section_id)
+    bell = await _get_bell(db, tid, payload.bell_schedule_id)
+    if bell["academic_year_id"] != payload.academic_year_id:
+        raise HTTPException(status_code=400, detail="bell_schedule_id must belong to academic_year_id")
+    sec = await db.academic_sections.find_one({"_id": _oid(payload.section_id), "tenant_id": tid})
+    if not sec or sec["class_id"] != payload.class_id:
+        raise HTTPException(status_code=400, detail="section_id must belong to class_id")
+    teaching = {int(p["period_no"]) for p in bell.get("periods") or [] if not p.get("is_break")}
+    slots = await db.timetable_slots.find({"tenant_id": tid, "academic_year_id": payload.academic_year_id,
+                                           "section_id": payload.section_id}).to_list(1000)
+    bad = [f"{s['weekday']} P{s['period_no']}" for s in slots if s["period_no"] not in teaching]
+    if bad:
+        raise HTTPException(status_code=409, detail={"code": "bell_incompatible",
+                            "message": f"Existing slots don't fit this bell schedule: {', '.join(bad[:6])}"})
+    meta = await _get_or_create_section_meta(db, tid, payload.model_dump())
+    await db.timetable_section_meta.update_one({"_id": meta["_id"]}, {"$set": {"bell_schedule_id": payload.bell_schedule_id, "updated_at": _now()}})
+    await db.timetable_slots.update_many({"tenant_id": tid, "academic_year_id": payload.academic_year_id,
+                                          "section_id": payload.section_id},
+                                         {"$set": {"bell_schedule_id": payload.bell_schedule_id}})
+    if slots:
+        await _mark_dirty(db, tid, payload.academic_year_id, payload.section_id)
+    await log_event(action="timetable.section.bell", resource="timetable_section_meta", resource_id=str(meta["_id"]),
+                    tenant_id=tid, actor=user, request=request, new_value={"bell_schedule_id": payload.bell_schedule_id})
     return _out(await db.timetable_section_meta.find_one({"_id": meta["_id"]}))
 
 

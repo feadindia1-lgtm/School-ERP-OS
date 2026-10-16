@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { api, formatApiError } from "@/lib/api";
 import { toast } from "sonner";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -24,6 +25,7 @@ export default function TeacherAssignmentsPage() {
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({ teacher_user_id: "", class_id: "", section_id: "", subject_id: "", is_class_teacher: false, weekly_periods: 0 });
   const [filterClass, setFilterClass] = useState("");
+  const [unlinked, setUnlinked] = useState(0);
 
   const load = useCallback(async () => {
     if (!yearId) return;
@@ -33,10 +35,11 @@ export default function TeacherAssignmentsPage() {
         api.get(`/school/academic/classes?academic_year_id=${yearId}`),
         api.get(`/school/academic/sections?academic_year_id=${yearId}`),
         api.get(`/school/academic/subjects`),
-        api.get(`/school/users`),
+        api.get(`/school/timetable/teachers`),
       ]);
       setAssignments(a.data); setClasses(c.data); setSections(se.data); setSubjects(su.data);
-      setTeachers((u.data || []).filter(x => ["teacher", "class_teacher"].includes(x.role)));
+      setTeachers(u.data || []);
+      api.get("/school/staff/account-links").then(({ data }) => setUnlinked(data.unlinked_employees.filter((x) => x.is_teaching_staff).length)).catch(() => {});
     } catch (e) { toast.error(formatApiError(e)); }
   }, [yearId, filterClass]);
   useEffect(() => { load(); }, [load]);
@@ -98,8 +101,9 @@ export default function TeacherAssignmentsPage() {
                   <Label className="overline">Teacher</Label>
                   <Select value={form.teacher_user_id} onValueChange={v => setForm({ ...form, teacher_user_id: v })}>
                     <SelectTrigger className="rounded-none h-10 mt-2" data-testid="ta-teacher-select"><SelectValue placeholder="Choose teacher" /></SelectTrigger>
-                    <SelectContent>{teachers.map(t => <SelectItem key={t.id} value={t.id} data-testid={`tat-${t.id}`}>{t.full_name || t.email}</SelectItem>)}</SelectContent>
+                    <SelectContent>{teachers.map(t => <SelectItem key={t.id} value={t.id} data-testid={`tat-${t.id}`}>{t.full_name || t.email}{t.employee_code ? ` · ${t.employee_code}` : ""}</SelectItem>)}</SelectContent>
                   </Select>
+                  {teachers.length === 0 && <div className="text-xs text-amber-700 mt-2" data-testid="ta-no-teachers">No active teacher logins. Create or link logins from the Staff page.</div>}
                 </div>
                 <div>
                   <Label className="overline">Class</Label>
@@ -141,6 +145,12 @@ export default function TeacherAssignmentsPage() {
           </Dialog>
         </div>
       </div>
+
+      {unlinked > 0 && (
+        <div className="mt-6 border border-amber-300 bg-amber-50 p-3 text-sm" data-testid="ta-unlinked-banner">
+          {unlinked} teaching staff member(s) have no login yet, so they can't be assigned. <Link to="/school/staff" className="underline">Link logins on the Staff page →</Link>
+        </div>
+      )}
 
       <div className="mt-8 bg-white border border-[var(--tinted-grey-200)]">
         <Table data-testid="assignments-table">

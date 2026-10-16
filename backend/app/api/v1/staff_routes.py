@@ -40,6 +40,7 @@ from app.models.staff import (
 )
 from app.services.audit_service import log_event
 from app.services.numbering import next_number
+from app.api.v1.staff_account_routes import link_employee_user
 
 router = APIRouter(prefix="/school/staff", tags=["staff"])
 
@@ -297,7 +298,14 @@ async def list_employees(
     db = get_db()
     total = await db.employees.count_documents(query)
     docs = await db.employees.find(query).sort("created_at", -1).skip((page-1)*page_size).limit(page_size).to_list(page_size)
-    return {"items": [_out(d) for d in docs], "total": total, "page": page, "page_size": page_size}
+    uids = [_oid(d["user_id"]) for d in docs if d.get("user_id")]
+    users = {str(u["_id"]): u for u in await db.users.find({"tenant_id": user["tenant_id"], "_id": {"$in": uids}}).to_list(500)}
+    items = []
+    for d in docs:
+        o = _out(d); u = users.get(d.get("user_id") or "")
+        o["linked_user"] = {"id": str(u["_id"]), "email": u.get("email"), "role": u.get("role"), "status": u.get("status", "active")} if u else None
+        items.append(o)
+    return {"items": items, "total": total, "page": page, "page_size": page_size}
 
 
 @router.get("/overview")
@@ -327,6 +335,8 @@ async def create_employee(payload: EmployeeIn, request: Request, user: dict = De
         raise HTTPException(status_code=400, detail="designation_id not found")
     if payload.user_id and not await db.users.find_one({"_id": _oid(payload.user_id), "tenant_id": user["tenant_id"]}):
         raise HTTPException(status_code=400, detail="user_id not found")
+    if payload.user_id and await db.employees.find_one({"tenant_id": user["tenant_id"], "user_id": payload.user_id}):
+        raise HTTPException(status_code=409, detail={"code": "user_already_linked", "message": "This login is already linked to another employee"})
     if payload.employment_type not in EMPLOYMENT_TYPES:
         raise HTTPException(status_code=400, detail=f"Allowed employment_type: {EMPLOYMENT_TYPES}")
     if payload.employee_code:
@@ -335,14 +345,13 @@ async def create_employee(payload: EmployeeIn, request: Request, user: dict = De
         code = payload.employee_code
     else:
         code = await next_number(user["tenant_id"], "EMP", width=4)
-    body = payload.model_dump(exclude={"employee_code"})
+    body = payload.model_dump(exclude={"employee_code", "user_id"})
     doc = Employee(tenant_id=user["tenant_id"], employee_code=code, **body).to_mongo()
     doc["status"] = "active"
     doc["status_effective_date"] = _now()
     res = await db.employees.insert_one(doc); doc["_id"] = res.inserted_id
-    # If linked to a login user, back-reference (idempotent)
     if payload.user_id:
-        await db.users.update_one({"_id": _oid(payload.user_id)}, {"$set": {"employee_id": str(res.inserted_id)}})
+        doc = await link_employee_user(db, user["tenant_id"], doc, payload.user_id, user, request)
     await log_event(action="staff.employee.create", resource="employee",
                     resource_id=str(res.inserted_id), tenant_id=user["tenant_id"],
                     actor=user, request=request, new_value={"employee_code": code})
@@ -369,12 +378,13 @@ async def update_employee(eid: str, payload: EmployeeUpdate, request: Request, u
         raise HTTPException(status_code=400, detail="department_id not found")
     if updates.get("designation_id") and not await db.staff_designations.find_one({"_id": _oid(updates["designation_id"]), "tenant_id": user["tenant_id"]}):
         raise HTTPException(status_code=400, detail="designation_id not found")
-    if updates.get("user_id") and not await db.users.find_one({"_id": _oid(updates["user_id"]), "tenant_id": user["tenant_id"]}):
-        raise HTTPException(status_code=400, detail="user_id not found")
+    link_uid = updates.pop("user_id", None)
+    if link_uid:
+        old = await link_employee_user(db, user["tenant_id"], old, link_uid, user, request)
+    if not updates:
+        return _out(old)
     updates["updated_at"] = _now()
     await db.employees.update_one({"_id": old["_id"]}, {"$set": updates})
-    if updates.get("user_id"):
-        await db.users.update_one({"_id": _oid(updates["user_id"])}, {"$set": {"employee_id": eid}})
     await log_event(action="staff.employee.update", resource="employee",
                     resource_id=eid, tenant_id=user["tenant_id"], actor=user, request=request,
                     old_value={k: old.get(k) for k in updates if k != "updated_at"},

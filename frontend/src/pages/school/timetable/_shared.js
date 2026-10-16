@@ -58,11 +58,13 @@ export function useSectionPicker(yearId) {
     } catch (e) { toast.error(formatApiError(e)); }
   }, [yearId]);
   useEffect(() => { loadClasses(); loadSections(); }, [loadClasses, loadSections]);
+  const setSectionId = useCallback((id) => { setSectionIdState(id); localStorage.setItem(STORAGE_SECTION, id); }, []);
   useEffect(() => {
+    if (!sections.length || !sectionId) return;
     const sec = sections.find((s) => s.id === sectionId);
     if (sec) setClassId(sec.class_id);
-  }, [sections, sectionId]);
-  const setSectionId = useCallback((id) => { setSectionIdState(id); localStorage.setItem(STORAGE_SECTION, id); }, []);
+    else setSectionId("");
+  }, [sections, sectionId, setSectionId]);
   const sectionsForClass = classId ? sections.filter((s) => s.class_id === classId) : sections;
   return { classes, sections, sectionsForClass, classId, setClassId, sectionId, setSectionId };
 }
@@ -78,14 +80,16 @@ export async function fetchBellSchedules(yearId) {
   return data;
 }
 
-export async function fetchGrid(yearId, sectionId) {
-  const { data } = await api.get("/school/timetable/grid", { params: { academic_year_id: yearId, section_id: sectionId } });
+export async function fetchGrid(yearId, sectionId, bellId) {
+  const params = { academic_year_id: yearId, section_id: sectionId };
+  if (bellId) params.bell_schedule_id = bellId;
+  const { data } = await api.get("/school/timetable/grid", { params });
   return data;
 }
 
 export async function fetchTeachers() {
-  const { data } = await api.get("/school/users");
-  return (data || []).filter((u) => u.role === "teacher" || u.role === "class_teacher");
+  const { data } = await api.get("/school/timetable/teachers");
+  return data || [];
 }
 
 export async function fetchSubjects() {

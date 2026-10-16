@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useStaffMeta, EMPLOYMENT_STATUSES, STATUS_TONE } from "./_shared";
+import { EmployeeAccountPanel } from "./EmployeeAccountPanel";
 
 const tabTrig = "rounded-none border-b-2 border-transparent data-[state=active]:border-[var(--klein)] data-[state=active]:bg-transparent data-[state=active]:shadow-none px-6 py-3 font-heading font-semibold";
 const field = "mt-2 h-10 rounded-none border-x-0 border-t-0 border-b-2 border-[var(--ink)] focus-visible:ring-0 focus-visible:border-[var(--klein)] px-0";
@@ -110,6 +111,8 @@ export default function StaffDetailPage() {
           <Button onClick={changeStatus} disabled={!newStatus} data-testid="staff-status-apply" className="rounded-full bg-[var(--ink)] hover:bg-[var(--klein)] text-white">Apply</Button>
         </div>
       </div>
+
+      <EmployeeAccountPanel emp={emp} onChanged={load} />
 
       <div className="mt-8">
         <Tabs defaultValue="overview">

@@ -39,6 +39,10 @@ class TimetableSectionMeta(BaseDocument):
     published_at: str | None = None
     published_by_user_id: str | None = None
     locked: bool = False
+    version: int = 0                        # increments on each publish
+    has_unpublished_changes: bool = False
+    last_validated_at: str | None = None
+    last_validation_ok: bool | None = None
     notes: str | None = None
 
 
